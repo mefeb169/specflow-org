@@ -1,0 +1,12 @@
+{
+  "name": "sdlc-local",
+  "description": "Local marketplace for the SDLC framework plugin",
+  "owner": { "name": "DevMechanix" },
+  "plugins": [
+    {
+      "name": "sdlc",
+      "source": ".",
+      "description": "Role-based AI SDLC framework with Spec Kit orchestration"
+    }
+  ]
+}

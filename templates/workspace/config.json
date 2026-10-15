@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "framework_version": "0.1.0",
+  "workspace": { "name": "", "root_is_repo": false },
+  "autonomy": "standard",
+  "branch_pattern": "{spec_slug}",
+  "repos": [],
+  "speckit": { "version": null, "integration": null, "location": ".", "skills": [] },
+  "guards": {
+    "source_edit_outside_implementing": "ask",
+    "destructive_bash_patterns": [],
+    "extra_bash_patterns": []
+  }
+}

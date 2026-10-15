@@ -1,0 +1,10 @@
+{
+  "name": "sdlc-framework",
+  "version": "0.1.0",
+  "description": "AI-driven SDLC framework for Claude Code (plugin + sdlc CLI)",
+  "type": "module",
+  "private": true,
+  "bin": { "sdlc": "scripts/sdlc.mjs" },
+  "engines": { "node": ">=18" },
+  "scripts": { "test": "node --test" }
+}
