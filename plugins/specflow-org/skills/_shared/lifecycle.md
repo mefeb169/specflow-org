@@ -27,6 +27,8 @@ Moving backward: `stage set <id> <earlier> --reason "..."` (clears gates from th
 
 ## Spec Kit mapping (skills are discovered; check `sdlc doctor` output / `.claude/skills/speckit-*`)
 
+`config.speckit.style` (set by `sdlc doctor`) is `skills` (invoke `speckit-<step>` through the Skill tool), `commands` (older installs: run the `/speckit.<step>` slash commands instead) or `none` (Spec Kit not usable; say so and offer `specify init`). If doctor warns the Spec Kit version is outside the tested range, verify each step's output instead of trusting it. If the workspace was created by an older plugin version, `sdlc brief` says so: show the user `sdlc upgrade` (dry run) before running `sdlc upgrade --apply`.
+
 | Step | Skill | When |
 |---|---|---|
 | Constitution | `speckit-constitution` | new project, or placeholder constitution only; needs approval |

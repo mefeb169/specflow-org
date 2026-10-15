@@ -7,7 +7,7 @@ import { scanWorkspace } from '../lib/scan.mjs';
 import { isGitRepo } from '../lib/git.mjs';
 import { validate } from '../lib/validate.mjs';
 import { emit } from './io.mjs';
-import { MIN_NODE, nodeOk } from '../lib/runtime.mjs';
+import { MIN_NODE, TESTED_SPECKIT, frameworkVersion, nodeOk, speckitInRange, workspaceStale } from '../lib/runtime.mjs';
 import { fileURLToPath } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -15,6 +15,25 @@ const TEMPLATES = path.resolve(HERE, '..', '..', 'templates', 'workspace');
 const BEGIN = '<!-- sdlc:begin -->';
 const END = '<!-- sdlc:end -->';
 // ---------- init / scan / doctor ----------
+/** Creates/updates ONLY the sdlc-managed block of the root CLAUDE.md. With write:false it just reports what would change. */
+export function applyClaudeBlock(root, { write }) {
+  const block = fs.readFileSync(path.join(TEMPLATES, 'claude-md-block.md'), 'utf8').trim();
+  const claude = path.join(root, 'CLAUDE.md');
+  if (!fs.existsSync(claude)) {
+    if (write) fs.writeFileSync(claude, block + '\n');
+    return { status: write ? 'created' : 'would be created', before: '', after: block };
+  }
+  const text = fs.readFileSync(claude, 'utf8');
+  const b = text.indexOf(BEGIN); const e = text.indexOf(END);
+  const next = b >= 0 && e > b
+    ? text.slice(0, b) + block + text.slice(e + END.length)
+    : text.replace(/\s*$/, '') + '\n\n' + block + '\n';
+  if (next === text) return { status: 'unchanged', before: block, after: block };
+  if (write) fs.writeFileSync(claude, next);
+  const label = b >= 0 ? 'block updated' : 'block appended';
+  return { status: write ? label : `would be: ${label}`, before: b >= 0 && e > b ? text.slice(b, e + END.length) : '', after: block };
+}
+
 export function cmdInit(args) {
   const root = path.resolve(args.flags.root || process.cwd());
   const p = paths(root);
@@ -26,24 +45,14 @@ export function cmdInit(args) {
     if (f === 'config.json') {
       const c = readJson(path.join(TEMPLATES, f));
       c.workspace.name = path.basename(root);
+      c.framework_version = frameworkVersion();
       c.workspace.root_is_repo = !!args.flags['root-is-repo'] || isGitRepo(root);
       c.guards.destructive_bash_patterns = [...DEFAULT_DESTRUCTIVE_PATTERNS];
       writeJson(dest, c);
     } else fs.copyFileSync(path.join(TEMPLATES, f), dest);
     created.push(`.sdlc/${f}`);
   }
-  // CLAUDE.md managed block
-  const block = fs.readFileSync(path.join(TEMPLATES, 'claude-md-block.md'), 'utf8').trim();
-  const claude = path.join(root, 'CLAUDE.md');
-  let claudeStatus;
-  if (!fs.existsSync(claude)) { fs.writeFileSync(claude, block + '\n'); claudeStatus = 'created'; } else {
-    const text = fs.readFileSync(claude, 'utf8');
-    const b = text.indexOf(BEGIN); const e = text.indexOf(END);
-    let next;
-    if (b >= 0 && e > b) next = text.slice(0, b) + block + text.slice(e + END.length);
-    else next = text.replace(/\s*$/, '') + '\n\n' + block + '\n';
-    if (next === text) claudeStatus = 'unchanged'; else { fs.writeFileSync(claude, next); claudeStatus = b >= 0 ? 'block updated' : 'block appended'; }
-  }
+  const claudeStatus = applyClaudeBlock(root, { write: true }).status;
   const scan = scanWorkspace(root);
   // .gitignore
   const gi = path.join(root, '.gitignore');
@@ -125,9 +134,14 @@ export function doctor(ctx) {
     const opts = readJson(path.join(dir, '.specify', 'init-options.json'), {});
     const skillsDir = path.join(dir, '.claude', 'skills');
     const skills = fs.existsSync(skillsDir) ? fs.readdirSync(skillsDir).filter((d) => d.startsWith('speckit-')).sort() : [];
-    ctx.config.speckit = { version: opts.speckit_version || null, integration: opts.integration || null, location: loc, skills };
-    add('spec kit', true, `initialized at "${loc}" v${opts.speckit_version || '?'} (${opts.integration || '?'}); skills: ${skills.length}`);
-    if (!skills.length) add('spec kit skills', false, 'no speckit-* skills in .claude/skills (integration may not be claude)');
+    const cmdDir = path.join(dir, '.claude', 'commands');
+    const commands = fs.existsSync(cmdDir) ? fs.readdirSync(cmdDir).filter((d) => /^speckit[.-].+\.md$/.test(d)).sort() : [];
+    const style = skills.length ? 'skills' : commands.length ? 'commands' : 'none';
+    ctx.config.speckit = { version: opts.speckit_version || null, integration: opts.integration || null, location: loc, style, skills: style === 'commands' ? commands : skills };
+    add('spec kit', true, `initialized at "${loc}" v${opts.speckit_version || '?'} (${opts.integration || '?'}); ${style}: ${ctx.config.speckit.skills.length}`);
+    if (style === 'none') add('spec kit steps', false, 'no speckit-* skills in .claude/skills and no speckit.* commands in .claude/commands (integration may not be claude)');
+    if (style === 'commands') add('spec kit style', true, 'older command-style install: run steps as /speckit.<step> slash commands instead of speckit-<step> skills');
+    if (opts.speckit_version && !speckitInRange(opts.speckit_version)) add('spec kit version', false, `v${opts.speckit_version} is outside the tested range >=${TESTED_SPECKIT.min} <${TESTED_SPECKIT.max}; verify each step's output before relying on it`);
     if (process.platform === 'win32' && process.env.SDLC_SKIP_TOOL_PROBE !== '1' && fs.existsSync(path.join(dir, '.specify', 'scripts', 'powershell'))) {
       const ep = spawnSync('powershell -NoProfile -Command "Get-ExecutionPolicy"', { encoding: 'utf8', shell: true });
       const pol = (ep.stdout || '').trim();
@@ -136,10 +150,12 @@ export function doctor(ctx) {
     }
     add('constitution', fs.existsSync(path.join(dir, '.specify', 'memory', 'constitution.md')), '.specify/memory/constitution.md');
   } else {
-    ctx.config.speckit = { version: null, integration: null, location: '.', skills: [] };
+    ctx.config.speckit = { version: null, integration: null, location: '.', style: 'none', skills: [] };
     add('spec kit', false, 'not initialized. Offer: specify init --here --integration claude --non-interactive (needs user approval)');
   }
   ctx.saveConfig();
+  const stale = workspaceStale(ctx.config);
+  if (stale) add('framework version', false, stale);
   const errs = validate(ctx);
   const uiRepos = ctx.config.repos.filter((r) => r.ui === true).map((r) => r.name);
   if (uiRepos.length) add('design system doc', fs.existsSync(path.join(ctx.root, '.sdlc', 'design-system.md')), `UI repos: ${uiRepos.join(', ')}; .sdlc/design-system.md ${fs.existsSync(path.join(ctx.root, '.sdlc', 'design-system.md')) ? 'present' : 'missing (sdlc-discover/sdlc-ux should write it)'}`);

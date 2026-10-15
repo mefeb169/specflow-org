@@ -10,9 +10,10 @@ import { cmdBlocker, cmdDep, cmdFeature, cmdRepo } from './commands/feature.mjs'
 import { cmdBranches, cmdCheck, cmdGate, cmdStage } from './commands/stage.mjs';
 import { cmdEvidence, cmdVerify } from './commands/verify.mjs';
 import { cmdNext, cmdStatus, cmdValidate } from './commands/views.mjs';
+import { cmdUpgrade } from './commands/upgrade.mjs';
 
 const HELP = `sdlc <command>
-  init [--root-is-repo] | scan | doctor | validate | brief | status [id] | next
+  init [--root-is-repo] | scan | doctor | validate | brief | status [id] | next | upgrade [--apply]
   repo set <name> [--test c --build c --lint c --purpose s --stack a,b --ui true|false --confirm --deploy-order n]
   feature add --title s [--priority P2 --mvp --repos a,b --summary s --value s --risk low|med|high --ui true|false]
   feature set|link|activate <id> ...   dep add|rm <id> <dep> --type t   blocker add|resolve <id> ...
@@ -40,7 +41,7 @@ function main() {
     scan: cmdScan,
     doctor: (a, c) => { const d = doctor(c); emit(d, renderDoctor(d)); if (d.some((x) => !x.ok && x.name === 'state validation')) process.exitCode = 1; },
     repo: cmdRepo, feature: cmdFeature, dep: cmdDep, blocker: cmdBlocker, stage: cmdStage, gate: cmdGate, check: cmdCheck,
-    branches: cmdBranches, verify: cmdVerify, evidence: cmdEvidence, status: cmdStatus, next: cmdNext, validate: cmdValidate,
+    branches: cmdBranches, verify: cmdVerify, evidence: cmdEvidence, status: cmdStatus, next: cmdNext, validate: cmdValidate, upgrade: cmdUpgrade,
   };
   const fn = commands[cmd];
   if (!fn) throw new UserError(`Unknown command "${cmd}". Run \`sdlc help\`.`);

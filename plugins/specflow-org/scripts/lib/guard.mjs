@@ -45,7 +45,7 @@ export function decide({ root, config, backlog, input, cwd }) {
     if (g || /sdlc(?:\.mjs)?["']?\s+gate\s+approve\b/i.test(cmd)) {
       return gate(g ? `Human approval of gate "${g[2]}" for ${g[1]}. Only approve if you reviewed the artifacts.` : 'Human approval of a lifecycle gate.');
     }
-    if (/sdlc(?:\.mjs)?["']?\s+(init|branches\s+create)\b/i.test(cmd) || /\bspecify\s+init\b/i.test(cmd)) {
+    if (/sdlc(?:\.mjs)?["']?\s+(init|branches\s+create|upgrade\s+--apply)\b/i.test(cmd) || /\bspecify\s+init\b/i.test(cmd)) {
       return gate('Framework/Spec Kit setup or branch creation changes the workspace; please confirm.');
     }
     if (/\.sdlc.(backlog|config)\.json/i.test(cmd) && /(>|\btee\b|sed\s+-i|Set-Content|Out-File|Add-Content|writeFile|\brm\b|\bmv\b|\bcp\b|Remove-Item|Move-Item|Rename-Item)/i.test(cmd)) {

@@ -5,6 +5,7 @@ import { depsStatus, openBlockers, requiredGates, checkTasks, uxCheck } from './
 import { currentBranch, headSha } from './git.mjs';
 import { latestEvidence, readEvidence } from './verify.mjs';
 import { isUi, paths, readJson, repoDir, specDirAbs } from './state.mjs';
+import { workspaceStale } from './runtime.mjs';
 
 const PRIO = { P0: 0, P1: 1, P2: 2, P3: 3 };
 const RISK = { low: 0, med: 1, high: 2 };
@@ -81,6 +82,8 @@ export function featureDetail(ctx, f) {
 
 export function warnings(ctx) {
   const w = [];
+  const stale = workspaceStale(ctx.config);
+  if (stale) w.push(stale);
   const unconfirmed = ctx.config.repos.filter((r) => !r.commands_confirmed).map((r) => r.name);
   if (unconfirmed.length) w.push(`repo commands unconfirmed: ${unconfirmed.join(', ')}`);
   for (const f of ctx.backlog.features) {
