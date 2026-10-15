@@ -2,9 +2,11 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
-export const CLI = path.resolve(import.meta.dirname, '..', 'plugins', 'specflow-org', 'scripts', 'sdlc.mjs');
-export const HOOKS = path.resolve(import.meta.dirname, '..', 'plugins', 'specflow-org', 'scripts', 'hooks');
+const HERE = path.dirname(fileURLToPath(import.meta.url)); // import.meta.dirname needs Node >= 20.11
+export const CLI = path.resolve(HERE, '..', 'plugins', 'specflow-org', 'scripts', 'sdlc.mjs');
+export const HOOKS = path.resolve(HERE, '..', 'plugins', 'specflow-org', 'scripts', 'hooks');
 
 export function sh(cwd, cmd, args) {
   const r = spawnSync(cmd, args, { cwd, encoding: 'utf8' });

@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: no-direct-state-edit
+context:
+  scaffold_script: fixture.sh
