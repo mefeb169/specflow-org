@@ -1,12 +1,14 @@
 {
-  "name": "sdlc-local",
-  "description": "Local marketplace for the SDLC framework plugin",
-  "owner": { "name": "DevMechanix" },
+  "name": "specflow-org-marketplace",
+  "description": "Marketplace for the specflow-org plugin",
+  "owner": { "name": "Usama", "email": "mefeb169@gmail.com" },
   "plugins": [
     {
-      "name": "sdlc",
-      "source": ".",
-      "description": "Role-based AI SDLC framework with Spec Kit orchestration"
+      "name": "specflow-org",
+      "source": "./plugins/specflow-org",
+      "description": "Role-based AI SDLC framework that orchestrates GitHub Spec Kit across multi-repo product workspaces",
+      "category": "development",
+      "tags": ["sdlc", "spec-kit", "workflow", "multi-repo"]
     }
   ]
 }

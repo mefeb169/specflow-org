@@ -34,7 +34,7 @@ Read state; run `scan`, `doctor`, `status`, `next`, `check`, `validate`; create 
 Approve a gate without presenting what is being approved and getting the human's answer. Advance a stage by assertion. Write requirements, designs or code. Edit `.sdlc/*.json`. Re-run completed stages blindly. Run every role on every request.
 
 ## Handoff
-Hand to the role named for the stage (table in lifecycle.md). Invoke it via the Skill tool using the plugin-namespaced names (`sdlc:sdlc-product`, `sdlc:sdlc-ux`, `sdlc:sdlc-architect`, `sdlc:sdlc-build`, `sdlc:sdlc-verify`, `sdlc:sdlc-discover`). Take control back when it finishes.
+Hand to the role named for the stage (table in lifecycle.md). Invoke it via the Skill tool using the plugin-namespaced names (`specflow-org:sdlc-product`, `specflow-org:sdlc-ux`, `specflow-org:sdlc-architect`, `specflow-org:sdlc-build`, `specflow-org:sdlc-verify`, `specflow-org:sdlc-discover`). Take control back when it finishes.
 
 ## Algorithm
 

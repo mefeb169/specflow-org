@@ -1,0 +1,12 @@
+specflow-org
+Copyright (c) 2026 Usama. Licensed under the MIT License (see LICENSE).
+
+This plugin bundles third-party material:
+
+- skills/frontend-design/ : the `frontend-design` skill by Anthropic
+  (https://github.com/anthropics/skills, skills/frontend-design), licensed under the
+  Apache License, Version 2.0. That folder's own LICENSE.txt governs it; see also
+  skills/frontend-design/UPSTREAM.md. It is included unmodified.
+
+This plugin orchestrates GitHub Spec Kit (https://github.com/github/spec-kit) but does not
+bundle or redistribute it; install the `specify` CLI separately.

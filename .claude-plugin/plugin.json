@@ -1,7 +1,0 @@
-{
-  "name": "sdlc",
-  "version": "0.1.0",
-  "author": { "name": "DevMechanix" },
-  "description": "Role-based, feature-oriented AI SDLC framework orchestrating GitHub Spec Kit across a multi-repository product workspace.",
-  "keywords": ["sdlc", "spec-kit", "workflow", "multi-repo"]
-}

@@ -1,0 +1,11 @@
+{
+  "name": "specflow-org",
+  "version": "0.3.0",
+  "displayName": "Specflow Org",
+  "description": "A role-based, feature-oriented AI software organization for Claude Code: orchestrates GitHub Spec Kit across a multi-repository product workspace with persistent state, approval gates and verification evidence.",
+  "author": { "name": "Usama", "email": "mefeb169@gmail.com", "url": "https://github.com/mefeb169" },
+  "homepage": "https://github.com/mefeb169/specflow-org",
+  "repository": "https://github.com/mefeb169/specflow-org",
+  "license": "MIT",
+  "keywords": ["sdlc", "spec-kit", "workflow", "multi-repo", "agents", "ux", "governance"]
+}

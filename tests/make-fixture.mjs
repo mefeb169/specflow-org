@@ -3,8 +3,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
-export const CLI = path.resolve(import.meta.dirname, '..', 'scripts', 'sdlc.mjs');
-export const HOOKS = path.resolve(import.meta.dirname, '..', 'scripts', 'hooks');
+export const CLI = path.resolve(import.meta.dirname, '..', 'plugins', 'specflow-org', 'scripts', 'sdlc.mjs');
+export const HOOKS = path.resolve(import.meta.dirname, '..', 'plugins', 'specflow-org', 'scripts', 'hooks');
 
 export function sh(cwd, cmd, args) {
   const r = spawnSync(cmd, args, { cwd, encoding: 'utf8' });

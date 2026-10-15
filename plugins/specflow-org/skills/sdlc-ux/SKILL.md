@@ -6,7 +6,7 @@ description: UX/UI Designer role. Use for "UX", "UI design", "wireframe", "user 
 # sdlc-ux (UX/UI Designer)
 
 CLI: `node "${CLAUDE_PLUGIN_ROOT}/scripts/sdlc.mjs"` (`sdlc`). Shared rules: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/{role-contract,evidence-tags,lifecycle}.md`.
-Aesthetic guidance comes from the vendored skill `sdlc:frontend-design`. Never edit that skill; this skill decides when and how it applies.
+Aesthetic guidance comes from the vendored skill `specflow-org:frontend-design`. Never edit that skill; this skill decides when and how it applies.
 
 ## Purpose
 Own the *experience*: flows, screens and their states, copy, accessibility, and (where one is needed) the product's visual direction, recorded so developers and reviewers can check against it.
@@ -41,7 +41,7 @@ Restyle an existing product in conform mode. Edit `spec.md` or acceptance criter
    - **conform** (default for existing products): a design system exists in code (tokens/theme, Tailwind config, component library, Storybook, a consistent established UI), or `.sdlc/design-system.md` already holds an approved direction.
    - **direction**: a new product or new UI surface with no design system, or the user explicitly asks for a redesign or new look.
    Design authority, highest first: the user's explicit direction; the existing design system in code and repo UI instructions; `.sdlc/design-system.md`; `frontend-design` defaults.
-2. **Direction mode only.** If `design-system.md` is missing or `source: none-yet`: invoke `sdlc:frontend-design` (Skill tool) and follow its process. Ground the design in the product's real subject and audience (confirm them with the user if unclear), write the compact token plan (4-6 named hex colors, typefaces and roles, layout concept with ASCII wireframes and alignment, principles), review the plan against the brief and the generic-defaults list, revise and say what changed. Show the plan to the user. Only after they agree, write `.sdlc/design-system.md` (`source: approved-direction`, `approved: <date>`); put rejected alternatives in the Exploration log.
+2. **Direction mode only.** If `design-system.md` is missing or `source: none-yet`: invoke `specflow-org:frontend-design` (Skill tool) and follow its process. Ground the design in the product's real subject and audience (confirm them with the user if unclear), write the compact token plan (4-6 named hex colors, typefaces and roles, layout concept with ASCII wireframes and alignment, principles), review the plan against the brief and the generic-defaults list, revise and say what changed. Show the plan to the user. Only after they agree, write `.sdlc/design-system.md` (`source: approved-direction`, `approved: <date>`); put rejected alternatives in the Exploration log.
 3. **Conform mode.** Read the design-system sources in code. Reuse their tokens, components, spacing and voice. From `frontend-design` apply only: the writing guidance, restraint and the quality floor (responsive to mobile, visible keyboard focus, reduced motion, accessible contrast), and "structure is information". Introduce no new colors, typefaces or radii; a new component names the existing primitives it builds on.
 4. **Write `ux.md`**: copy the template into the spec directory and fill every section.
    - Flows: only number steps when the flow really is a sequence.
