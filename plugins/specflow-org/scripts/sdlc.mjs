@@ -3,6 +3,7 @@
 import path from 'node:path';
 import { UserError, findRoot, load, requireRoot } from './lib/state.mjs';
 import { brief } from './lib/render.mjs';
+import { MIN_NODE, nodeOk } from './lib/runtime.mjs';
 import { emit, io, parseArgs } from './commands/io.mjs';
 import { cmdInit, cmdScan, doctor, renderDoctor } from './commands/init.mjs';
 import { cmdBlocker, cmdDep, cmdFeature, cmdRepo } from './commands/feature.mjs';
@@ -21,6 +22,7 @@ All commands accept --json.`;
 
 
 function main() {
+  if (!nodeOk()) throw new UserError(`specflow-org requires Node.js >= ${MIN_NODE} (found ${process.env.SDLC_FAKE_NODE_MAJOR || process.versions.node}).`);
   const args = parseArgs(process.argv.slice(2));
   io.json = !!args.flags.json;
   const cmd = args._.shift();

@@ -8,6 +8,7 @@
   "speckit": { "version": null, "integration": null, "location": ".", "skills": [] },
   "guards": {
     "source_edit_outside_implementing": "ask",
+    "deny_in_unattended_modes": true,
     "destructive_bash_patterns": [],
     "extra_bash_patterns": []
   }

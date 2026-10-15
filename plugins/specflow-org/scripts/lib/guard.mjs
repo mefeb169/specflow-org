@@ -11,6 +11,8 @@ const NON_SOURCE = ['specs', '.sdlc', '.specify', '.claude'];
 
 const deny = (reason) => ({ decision: 'deny', reason });
 const ask = (reason) => ({ decision: 'ask', reason });
+// Permission modes in which a hook-forced "ask" may never reach a human.
+const UNATTENDED_MODES = ['bypassPermissions', 'dontAsk'];
 
 function within(child, parent) {
   const rel = path.relative(parent, child);
@@ -31,24 +33,29 @@ function editOnlyTouchesMarkers(file, input) {
 export function decide({ root, config, backlog, input, cwd }) {
   const tool = input.tool_name;
   const ti = input.tool_input || {};
+  const unattended = UNATTENDED_MODES.includes(input.permission_mode) && config.guards?.deny_in_unattended_modes !== false;
+  // High-stakes actions need a real human prompt; where none can be shown, refuse instead of asking.
+  const gate = (reason) => (unattended
+    ? deny(`${reason} Refused: permission mode "${input.permission_mode}" cannot show an interactive prompt. Switch to a mode that asks (default, acceptEdits or auto) and retry.`)
+    : ask(reason));
 
   if (tool === 'Bash') {
     const cmd = String(ti.command || '');
     const g = cmd.match(/sdlc(?:\.mjs)?["']?\s+gate\s+approve\s+(\S+)\s+(\S+)/i);
     if (g || /sdlc(?:\.mjs)?["']?\s+gate\s+approve\b/i.test(cmd)) {
-      return ask(g ? `Human approval of gate "${g[2]}" for ${g[1]}. Only approve if you reviewed the artifacts.` : 'Human approval of a lifecycle gate.');
+      return gate(g ? `Human approval of gate "${g[2]}" for ${g[1]}. Only approve if you reviewed the artifacts.` : 'Human approval of a lifecycle gate.');
     }
     if (/sdlc(?:\.mjs)?["']?\s+(init|branches\s+create)\b/i.test(cmd) || /\bspecify\s+init\b/i.test(cmd)) {
-      return ask('Framework/Spec Kit setup or branch creation changes the workspace; please confirm.');
+      return gate('Framework/Spec Kit setup or branch creation changes the workspace; please confirm.');
     }
     if (/\.sdlc.(backlog|config)\.json/i.test(cmd) && /(>|\btee\b|sed\s+-i|Set-Content|Out-File|Add-Content|writeFile|\brm\b|\bmv\b|\bcp\b|Remove-Item|Move-Item|Rename-Item)/i.test(cmd)) {
-      return ask('Shell command appears to modify sdlc state files directly. Use the sdlc CLI instead.');
+      return gate('Shell command appears to modify sdlc state files directly. Use the sdlc CLI instead.');
     }
     const patterns = [...(config.guards?.destructive_bash_patterns || DEFAULT_DESTRUCTIVE_PATTERNS), ...(config.guards?.extra_bash_patterns || [])];
     for (const p of patterns) {
       let re;
       try { re = new RegExp(p, 'i'); } catch { continue; }
-      if (re.test(cmd)) return ask(`Destructive or outward-facing command (matched /${p}/).`);
+      if (re.test(cmd)) return gate(`Destructive or outward-facing command (matched /${p}/).`);
     }
     return null;
   }

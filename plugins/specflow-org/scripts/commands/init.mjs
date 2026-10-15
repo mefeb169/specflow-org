@@ -7,6 +7,7 @@ import { scanWorkspace } from '../lib/scan.mjs';
 import { isGitRepo } from '../lib/git.mjs';
 import { validate } from '../lib/validate.mjs';
 import { emit } from './io.mjs';
+import { MIN_NODE, nodeOk } from '../lib/runtime.mjs';
 import { fileURLToPath } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -110,7 +111,7 @@ function specifyCli() {
 export function doctor(ctx) {
   const checks = [];
   const add = (name, ok, detail) => checks.push({ name, ok, detail });
-  add('node', true, process.version);
+  add('node', nodeOk(), nodeOk() ? process.version : `${process.version} is older than the required >= ${MIN_NODE}`);
   const g = spawnSync('git', ['--version'], { encoding: 'utf8' });
   add('git', g.status === 0, g.status === 0 ? g.stdout.trim() : 'not found');
   const cli = specifyCli();

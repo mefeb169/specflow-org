@@ -1,11 +1,11 @@
 {
-  "description": "SDLC framework: session brief, guardrails, state validation. All hooks are no-ops outside an sdlc workspace.",
+  "description": "specflow-org: session brief, guardrails, state validation. All hooks are no-ops outside an sdlc workspace. Requires Node.js >= 18 on PATH.",
   "hooks": {
     "SessionStart": [
       {
         "matcher": "startup|resume|clear|compact",
         "hooks": [
-          { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/hooks/session-start.mjs\"", "timeout": 30 }
+          { "type": "command", "command": "node", "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/hooks/session-start.mjs"], "timeout": 30 }
         ]
       }
     ],
@@ -13,14 +13,14 @@
       {
         "matcher": "Bash|Edit|Write|MultiEdit|NotebookEdit",
         "hooks": [
-          { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/hooks/pre-tool-use.mjs\"", "timeout": 30 }
+          { "type": "command", "command": "node", "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/hooks/pre-tool-use.mjs"], "timeout": 30 }
         ]
       }
     ],
     "Stop": [
       {
         "hooks": [
-          { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/hooks/stop.mjs\"", "timeout": 30 }
+          { "type": "command", "command": "node", "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/hooks/stop.mjs"], "timeout": 30 }
         ]
       }
     ]

@@ -51,8 +51,8 @@ export function cliEnv(root, env, ...args) {
   return { code: r.status, out: r.stdout, err: r.stderr };
 }
 
-export function hook(name, cwd, input) {
-  const r = spawnSync(process.execPath, [path.join(HOOKS, `${name}.mjs`)], { cwd, input: JSON.stringify({ cwd, ...input }), encoding: 'utf8' });
+export function hook(name, cwd, input, env = {}) {
+  const r = spawnSync(process.execPath, [path.join(HOOKS, `${name}.mjs`)], { cwd, input: JSON.stringify({ cwd, ...input }), encoding: 'utf8', env: { ...process.env, ...env } });
   return { code: r.status, out: r.stdout.trim(), err: r.stderr, json: r.stdout.trim() ? JSON.parse(r.stdout) : null };
 }
 
