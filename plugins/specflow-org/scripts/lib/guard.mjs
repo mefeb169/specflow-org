@@ -30,6 +30,15 @@ function editOnlyTouchesMarkers(file, input) {
   return block.includes(input.old_string) && text.split(input.old_string).length === 2;
 }
 
+/**
+ * Drops the BODY of `cat ... <<EOF` heredocs (file content being written, e.g. a spec that mentions
+ * `sdlc branches create`) so prose is not mistaken for commands. The first line (including any
+ * redirect target) is kept, and heredocs fed to other programs (`bash <<EOF`) are left intact.
+ */
+export function stripCatHeredocBodies(cmd) {
+  return cmd.replace(/(\bcat\b[^\n<]*<<-?\s*(['"]?)([A-Za-z_]\w*)\2[^\n]*)\n[\s\S]*?\n[ \t]*\3[ \t]*(?=\n|$)/g, '$1');
+}
+
 export function decide({ root, config, backlog, input, cwd }) {
   const tool = input.tool_name;
   const ti = input.tool_input || {};
@@ -40,7 +49,7 @@ export function decide({ root, config, backlog, input, cwd }) {
     : ask(reason));
 
   if (tool === 'Bash') {
-    const cmd = String(ti.command || '');
+    const cmd = stripCatHeredocBodies(String(ti.command || ''));
     const g = cmd.match(/sdlc(?:\.mjs)?["']?\s+gate\s+approve\s+(\S+)\s+(\S+)/i);
     if (g || /sdlc(?:\.mjs)?["']?\s+gate\s+approve\b/i.test(cmd)) {
       return gate(g ? `Human approval of gate "${g[2]}" for ${g[1]}. Only approve if you reviewed the artifacts.` : 'Human approval of a lifecycle gate.');

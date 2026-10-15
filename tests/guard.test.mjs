@@ -49,3 +49,16 @@ test('GRD-3. old Node runtimes fail cleanly in the CLI and stay silent in hooks'
   assert.equal(h.out, '');
   fx.cleanup();
 });
+
+test('GRD-4. prose inside cat heredocs is not mistaken for commands, real commands still are', () => {
+  const fx = makeFixture();
+  cli(fx.root, 'init');
+  const run = (command, permission_mode = 'default') => hook('pre-tool-use', fx.root, { tool_name: 'Bash', permission_mode, tool_input: { command } });
+  const doc = "cat > specs/001-x/spec.md <<'EOF'\n# Spec\nBranches come from `sdlc branches create`, never `git push`.\nsdlc gate approve F-001 spec is human only. See .sdlc/backlog.json > notes\nEOF\n";
+  assert.equal(run(doc).json, null, 'spec prose ignored');
+  assert.equal(run(doc, 'bypassPermissions').json, null, 'and not denied in unattended modes');
+  assert.equal(dec(run(doc + 'git push origin main')), 'ask', 'a real command after the heredoc is still caught');
+  assert.equal(dec(run("bash <<'EOF'\ngit push origin main\nEOF\n")), 'ask', 'heredoc fed to a shell is still inspected');
+  assert.equal(dec(run("cat > .sdlc/backlog.json <<'EOF'\n{}\nEOF\n")), 'ask', 'redirect to a state file on the first line is still caught');
+  fx.cleanup();
+});
