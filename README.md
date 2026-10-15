@@ -6,12 +6,20 @@ A Claude Code plugin that turns a product workspace (one or many Git repos under
 
 | Layer | What | Guarantee |
 |---|---|---|
-| Skills / agents | `sdlc` (orchestrator), `sdlc-discover`, `sdlc-product`, `sdlc-architect`, `sdlc-build`, `sdlc-verify`; subagents `repo-profiler`, `independent-reviewer` | advisory (AI judgment) |
+| Skills / agents | `sdlc` (orchestrator), `sdlc-discover`, `sdlc-product`, `sdlc-ux`, `sdlc-architect`, `sdlc-build`, `sdlc-verify`; subagents `repo-profiler`, `independent-reviewer` | advisory (AI judgment) |
 | `sdlc` CLI | `scripts/sdlc.mjs`: the only writer of lifecycle state; validates every stage change against real files and evidence | deterministic |
 | Hooks | SessionStart brief; PreToolUse guards; Stop validation | deterministic (harness-enforced) |
 | Spec Kit | `speckit-*` skills + `.specify/` at the workspace root | owns spec/plan/tasks |
 
 State: `.sdlc/backlog.json` (feature identity, stage, deps, gates, blockers), `.sdlc/config.json` (repos, commands, autonomy, guards), `.sdlc/product.md`, `.sdlc/workspace-map.md`, `.sdlc/decisions/`. Requirements, plans and tasks stay in Spec Kit's `specs/NNN-name/`; evidence is appended to `specs/NNN-name/verification.md`. Status views are generated, never stored.
+
+## UI / UX
+
+- **`sdlc:sdlc-ux`** (UX/UI Designer) owns `.sdlc/design-system.md` and each UI feature's `specs/NNN/ux.md` (mode, flows, screens and states, copy, accessibility, tokens). It runs at `specified`, before the architect.
+- **Two modes**, recorded in `ux.md` (`Mode: conform | direction`). *conform* (default for existing products) follows the design system already in code and applies only the writing, restraint and quality-floor parts of `frontend-design`. *direction* (new product/surface, or an explicit redesign) runs the full `frontend-design` process (token plan, review against generic defaults, revise) and needs the user's approval before building. Precedence: user's explicit direction > design system in code > `.sdlc/design-system.md` > `frontend-design` defaults.
+- **`ui` trait:** `scan` sets `repos[].ui` (UI framework or design-system evidence); features derive it from their repos (`feature add --ui`, `feature set <id> ui true|false`, `repo set <name> --ui true|false`). For UI features the CLI requires a complete `ux.md` before `designed`, makes the `design` gate required in `standard` autonomy, and requires passing `ux-review` evidence before `accepted`. Both can be relaxed in `config.json`: `"ux": {"design_gate_for_ui": false, "require_ux_review": false}`.
+- **Visual checks** use only tooling a repo already has (Playwright, Cypress, Storybook); otherwise the review is code-based plus a manual check, recorded honestly in the `ux-review` note.
+- **Vendored skill:** `skills/frontend-design/` is Anthropic's `frontend-design` skill, unmodified, with its Apache-2.0 `LICENSE.txt` (see `UPSTREAM.md`). It appears as `sdlc:frontend-design`; if you also install Anthropic's own copy you will see both, namespaced separately.
 
 ## Install
 
@@ -50,7 +58,7 @@ Known limits: hooks cannot see everything a shell can do (a script run via Bash 
 
 ## Phase 1 limits (deliberate)
 
-No UX or release roles, no Spec Kit extension/preset, no `upgrade` tooling, no issue-tracker sync, no PR creation, Stop hook does not block. See Part C of the plan.
+No release role, no Spec Kit extension/preset, no `upgrade` tooling, no issue-tracker sync, no PR creation, Stop hook does not block. See Part C of the plan.
 
 ## Deviations from the plan
 

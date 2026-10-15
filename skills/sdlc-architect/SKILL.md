@@ -14,7 +14,7 @@ Own the *how*: technical design that fits the existing architecture and repo con
 A feature is `specified` (spec gate approved or pending) or `designed`; an architecture-level decision is needed (new project stack, cross-cutting choice).
 
 ## Inputs (read first)
-`specs/NNN/spec.md`, `.specify/memory/constitution.md`, `.sdlc/workspace-map.md` (integration edges, conventions, commands), each affected repo's instruction files and the relevant code/contracts/schemas, `sdlc gate required <id>`.
+`specs/NNN/spec.md`, `specs/NNN/ux.md` (UI features; `sdlc-ux` runs first), `.sdlc/design-system.md`, `.specify/memory/constitution.md`, `.sdlc/workspace-map.md` (integration edges, conventions, commands), each affected repo's instruction files and the relevant code/contracts/schemas, `sdlc gate required <id>`.
 
 ## Outputs (artifacts)
 `plan.md`, `research.md`, `data-model.md`, `contracts/*` (from `speckit-plan`); a `## Repository Impact` section in plan.md; `tasks.md` with `[repo:<name>]` tags (from `speckit-tasks`); analyze findings; ADRs in `.sdlc/decisions/ADR-NNNN-title.md` for cross-cutting decisions.
@@ -45,7 +45,8 @@ Change acceptance criteria or business rules (raise `blocker add --kind requirem
    one row per affected repo, with contract changes and sequencing (e.g. backend before frontend). Keep `sdlc feature set <id> repos ...` in sync with the table.
 4. Cross-cutting decisions -> ADR file (context, decision, alternatives, consequences). Link it from plan.md.
 5. `sdlc stage set <id> designed`. If `sdlc gate required <id>` lists `design`, hand back for approval.
-6. After approval: run `speckit-tasks`. Ensure EVERY task line carries `[repo:<registered name>]`; fix lines yourself. Run `sdlc check tasks <id>` until clean. Run `speckit-analyze` (always for multi-repo features); fix issues in plan/tasks; if a finding needs a spec change, raise a requirement blocker instead. Record it: `sdlc evidence add <id> --kind analyze --result pass|fail --note "..."`.
+   For UI features, the plan implements `ux.md` as written (design-system components, screens, states); contradictions go to a blocker, not a silent redesign.
+6. After approval: run `speckit-tasks`. For UI features the tasks reference `ux.md` screens and include the empty, loading and error states and the accessibility items. Ensure EVERY task line carries `[repo:<registered name>]`; fix lines yourself. Run `sdlc check tasks <id>` until clean. Run `speckit-analyze` (always for multi-repo features); fix issues in plan/tasks; if a finding needs a spec change, raise a requirement blocker instead. Record it: `sdlc evidence add <id> --kind analyze --result pass|fail --note "..."`.
 7. `sdlc stage set <id> planned`.
 
 ## Done when

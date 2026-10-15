@@ -21,5 +21,11 @@ A feature is never "done" because of its title, a ticked task, or unverified cod
 4. The Spec Kit constitution (`.specify/memory/constitution.md`) for specs, plans and tasks.
 5. Framework defaults (the sdlc role skills).
 
+## Design authority (UI work), highest first
+1. The user's explicit design direction in this session.
+2. The existing design system in code and the repo's own UI instructions.
+3. `.sdlc/design-system.md`.
+4. `frontend-design` defaults (aesthetic guidance, applied by `sdlc-ux`).
+
 Cross-level conflict that changes behavior: apply the higher source AND record it in `.sdlc/workspace-map.md` under Conflicts.
 Same-level conflict: stop and ask the user. Never overwrite an existing instruction file without approval.

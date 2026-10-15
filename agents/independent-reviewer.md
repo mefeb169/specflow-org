@@ -17,6 +17,13 @@ Check, in order:
 5. Migrations: reversible, safe on existing data, ordered with deploys.
 6. Conformance with the repo's own instructions and conventions; scope creep beyond the tasks.
 
+UI review (only when the caller says "UI review: on" and supplies `ux.md` and the design system):
+- Every screen and state listed in `ux.md` is implemented, and copy strings match `ux.md` exactly.
+- Keyboard operability and visible focus, contrast, `prefers-reduced-motion`, responsiveness down to mobile.
+- Conform mode: no new colors, typefaces or radii outside the existing design system. Direction mode: implementation matches the approved tokens.
+- Generic-default tells from the frontend-design calibration list (cream plus terracotta, near-black plus acid accent, identical rounded cards, ALL-CAPS eyebrows on everything, "01/02/03" markers on non-sequences, etc.), but only where the brief left that axis free.
+- Say whether you inspected code only or rendered screens; never imply a visual check you did not do.
+
 Do not report style nits unless an instruction file makes them rules. Do not speculate: cite file:line and quote the requirement or criterion violated.
 
 Return:
@@ -26,6 +33,8 @@ Return:
 Verdict: PASS | FAIL
 ### Findings
 - [blocker|major|minor] path:line - what is wrong - violated requirement/criterion - recommendation
+### UI findings
+(only when UI review was on: same format as Findings, plus "inspected: code only | rendered")
 ### Acceptance criteria coverage
 - <criterion> - covered by <test path> | NOT COVERED
 ### Not verified

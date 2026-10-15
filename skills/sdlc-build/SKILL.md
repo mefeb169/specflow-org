@@ -40,6 +40,7 @@ When all tasks are `[X]` and every repo has a passing `verify run` at HEAD: `sdl
 3. For each repo, in order:
    a. Read its instruction files and follow them (they outrank framework defaults). Record any conflict with the plan as a blocker.
    b. Implement that repo's `[repo:<name>]` tasks, either via `speckit-implement` with the argument "Only tasks tagged [repo:<name>]" or directly when clearer. Respect contracts exactly; change a contract only through the plan (blocker if the contract is wrong).
+   b2. UI repos (`ui: true`): read `specs/NNN/ux.md` and `.sdlc/design-system.md`. In conform mode reuse the existing tokens/components and add no new colors, typefaces or radii. Use the exact copy strings from `ux.md`. Implement every listed screen state. Meet the quality floor: responsive down to mobile, visible keyboard focus, `prefers-reduced-motion` respected, accessible contrast. Keep CSS specificity simple so classes do not cancel each other. Load `sdlc:frontend-design` only for direction-mode features, and follow the approved tokens.
    c. Add/adjust tests covering the acceptance criteria this repo is responsible for. Update repo docs when user- or integrator-visible behavior changes.
    d. Mark finished tasks `[X]` in tasks.md; commit locally on the feature branch (small, conventional messages).
    e. `sdlc verify run <id> --repo <name>` (and `--kind build`/`lint` where confirmed). On failure: fix and re-run; report honestly if you cannot.

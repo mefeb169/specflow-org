@@ -4,7 +4,7 @@ import { STAGES, STAGE_ROLE, stageIdx } from './lifecycle.mjs';
 import { depsStatus, openBlockers, requiredGates, checkTasks, uxCheck } from './gates.mjs';
 import { currentBranch, headSha } from './git.mjs';
 import { latestEvidence, readEvidence } from './verify.mjs';
-import { isUi, repoDir, specDirAbs } from './state.mjs';
+import { isUi, paths, readJson, repoDir, specDirAbs } from './state.mjs';
 
 const PRIO = { P0: 0, P1: 1, P2: 2, P3: 3 };
 const RISK = { low: 0, med: 1, high: 2 };
@@ -55,6 +55,17 @@ export function statusRow(ctx, f) {
   return { id: f.id, title: f.title, stage: f.stage, blocked: openBlockers(f).length > 0 || depsStatus(ctx, f).length > 0, priority: f.priority, repos: f.repos, next: nextAction(ctx, f) };
 }
 
+/** Design-system evidence the last scan found in this feature's UI repos (deterministic input for sdlc-ux's mode choice). */
+function uiEvidence(ctx, f) {
+  const scan = readJson(paths(ctx.root).scan, null);
+  const out = {};
+  for (const name of f.repos) {
+    const r = scan?.repos?.find((x) => x.name === name);
+    if (r?.ui?.is_ui) out[name] = { design_system: r.ui.design_system, visual_test_tools: r.ui.visual_test_tools };
+  }
+  return out;
+}
+
 export function featureDetail(ctx, f) {
   const ev = readEvidence(ctx, f);
   const tasks = f.spec_dir ? checkTasks(ctx, f) : null;
@@ -65,7 +76,7 @@ export function featureDetail(ctx, f) {
     return { repo: name, last: last ? { at: last.at, kind: last.kind, result: last.result, sha: last.sha } : null, head, fresh: !!last && last.sha === head };
   });
   const uxFailures = uxCheck(ctx, f);
-  return { ...statusRow(ctx, f), ui: isUi(ctx, f), ux: { required: isUi(ctx, f), complete: uxFailures.length === 0, failures: uxFailures }, spec_dir: f.spec_dir, branches: f.branches, gates: f.gates, required_gates: requiredGates(ctx, f), pending_gates: requiredGates(ctx, f).filter((g) => !f.gates[g]), deps: f.deps, blockers: f.blockers, held_by: depsStatus(ctx, f), tasks: tasks && { total: tasks.total, done: tasks.done, per_repo: tasks.perRepo }, evidence, revisit: f.revisit };
+  return { ...statusRow(ctx, f), ui: isUi(ctx, f), ui_evidence: uiEvidence(ctx, f), ux: { required: isUi(ctx, f), complete: uxFailures.length === 0, failures: uxFailures }, spec_dir: f.spec_dir, branches: f.branches, gates: f.gates, required_gates: requiredGates(ctx, f), pending_gates: requiredGates(ctx, f).filter((g) => !f.gates[g]), deps: f.deps, blockers: f.blockers, held_by: depsStatus(ctx, f), tasks: tasks && { total: tasks.total, done: tasks.done, per_repo: tasks.perRepo }, evidence, revisit: f.revisit };
 }
 
 export function warnings(ctx) {

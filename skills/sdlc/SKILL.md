@@ -34,15 +34,15 @@ Read state; run `scan`, `doctor`, `status`, `next`, `check`, `validate`; create 
 Approve a gate without presenting what is being approved and getting the human's answer. Advance a stage by assertion. Write requirements, designs or code. Edit `.sdlc/*.json`. Re-run completed stages blindly. Run every role on every request.
 
 ## Handoff
-Hand to the role named for the stage (table in lifecycle.md). Invoke it via the Skill tool using the plugin-namespaced names (`sdlc:sdlc-product`, `sdlc:sdlc-architect`, `sdlc:sdlc-build`, `sdlc:sdlc-verify`, `sdlc:sdlc-discover`). Take control back when it finishes.
+Hand to the role named for the stage (table in lifecycle.md). Invoke it via the Skill tool using the plugin-namespaced names (`sdlc:sdlc-product`, `sdlc:sdlc-ux`, `sdlc:sdlc-architect`, `sdlc:sdlc-build`, `sdlc:sdlc-verify`, `sdlc:sdlc-discover`). Take control back when it finishes.
 
 ## Algorithm
 
 1. **No `.sdlc/`?** Ask whether this is an existing or a new project, then (with approval) run `sdlc init`. Existing project -> invoke `sdlc-discover`. New project -> invoke `sdlc-product` (vision and backlog first), then `sdlc-architect` for stack-level decisions. Offer Spec Kit initialization only after that (`specify init --here --integration claude --non-interactive`, add `--force` for a non-empty root; it only adds files, say so).
 2. **Resolve staleness first.** Read the brief's warnings (HEAD moved since last verification, wrong branch, unconfirmed commands, tasks.md edited after staging). Re-check actual files; fix or report before continuing.
 3. **A feature in flight?** Run `sdlc status <id>`: stage, pending gates, evidence freshness, blockers, next action. Otherwise run `sdlc next`; present the top candidate with its reasons and the runner-ups, and confirm with the user. Explain why it is first and which repos, decisions or dependencies matter. A "not ready" feature is not startable; say what holds it.
-4. **Route** to the role for the current stage. Activate only that role.
-5. **After the role returns**, run `sdlc status <id>` and continue. When the next stage needs a gate: summarize exactly what is being approved with links to the artifacts (spec.md, plan.md, tasks.md, verification.md), ask the human for approval, then run `sdlc gate approve <id> <gate>` (the hook will prompt; that prompt is the approval). If the human declines or asks for changes, do NOT approve; route back to the owning role or move the stage back with `--reason`.
+4. **Route** to the role for the current stage. Activate only that role. For a UI feature (`ui: true`) at `specified`, `sdlc status <id>` names `sdlc-ux` while `ux.md` is incomplete; run `sdlc-ux` before `sdlc-architect`. A new product with a UI goes product -> ux (direction mode) -> architect.
+5. **After the role returns**, run `sdlc status <id>` and continue. When the next stage needs a gate: summarize exactly what is being approved with links to the artifacts (spec.md, ux.md and its Mode for UI features, plan.md, tasks.md, verification.md), ask the human for approval, then run `sdlc gate approve <id> <gate>` (the hook will prompt; that prompt is the approval). If the human declines or asks for changes, do NOT approve; route back to the owning role or move the stage back with `--reason`.
 6. **Never skip the CLI's verdict.** If `stage set` refuses, show the listed criteria and route work to satisfy them. A failed check is reported as failed.
 7. **Release (Phase 1 is manual):** with the human, record `sdlc evidence add <id> --kind release --result pass --note "..."`, approve the `acceptance` gate first, then `stage set released`; later `--kind post-release` evidence (or `--reason` waiver) and `stage set done`.
 

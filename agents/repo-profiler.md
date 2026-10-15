@@ -25,6 +25,8 @@ Return exactly this markdown:
 ### External interfaces exposed and consumed
 (APIs, events, shared models, auth; with evidence)
 ### Data stores and migrations
+### UI and design system
+(UI framework, component library, token/theme files, Storybook, visual test tools such as Playwright/Cypress, how consistent the existing UI is; "not a UI repo" if so. Evidence tags.)
 ### CI/CD and deployment
 ### Spec Kit presence
 ### Features observed

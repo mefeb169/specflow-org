@@ -47,6 +47,11 @@ test('UX-1. scan marks UI repos and finds design-system evidence', () => {
   const cfg = readCfg(fx.root);
   assert.equal(cfg.repos.find((r) => r.name === 'frontend').ui, true);
   assert.equal(cfg.repos.find((r) => r.name === 'backend').ui, false);
+  // status surfaces the scan's design-system evidence for sdlc-ux's mode choice
+  const id = cli(fx.root, 'feature', 'add', '--title', 'FE', '--repos', 'frontend').out.trim();
+  const d = j(fx.root, 'status', id);
+  assert.ok(d.ui_evidence.frontend.design_system.includes('tailwind.config.js'));
+  assert.match(cli(fx.root, 'status', id).out, /ui evidence frontend: design system tailwind\.config\.js/);
   fx.cleanup();
 });
 

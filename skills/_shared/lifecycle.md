@@ -9,17 +9,19 @@ CLI shorthand used in skills: `sdlc` = `node "${CLAUDE_PLUGIN_ROOT}/scripts/sdlc
 | proposed | none | sdlc-product |
 | defined | title, value, summary/acceptance draft, repos set | sdlc-product |
 | specified | spec_dir linked, spec.md exists, no `[NEEDS CLARIFICATION]` | sdlc-product |
-| designed | gate `spec` (if required); plan.md exists; `## Repository Impact` when repos > 1 | sdlc-architect |
+| designed | gate `spec` (if required); plan.md exists; `## Repository Impact` when repos > 1; **UI features:** `ux.md` with a `Mode:` line and `## Flows`, `## Screens and states`, `## Copy`, `## Accessibility` | sdlc-ux (UI) then sdlc-architect |
 | planned | gate `design` (if required); tasks.md exists and every task tagged `[repo:<registered name>]` | sdlc-architect |
 | implementing | gate `implement`; branch recorded for every affected git repo | sdlc-build |
 | verifying | every task `[X]` | sdlc-build -> sdlc-verify |
-| accepted | 0 open blockers; passing test/manual evidence at each repo's current HEAD; passing review evidence | sdlc-verify |
+| accepted | 0 open blockers; passing test/manual evidence at each repo's current HEAD; passing review evidence; **UI features:** passing `ux-review` evidence | sdlc-verify |
 | released | gate `acceptance`; passing release evidence | sdlc (manual in Phase 1) |
 | done | gate `release` (if required); post-release evidence or `--reason` waiver | sdlc |
 
 Gates: `spec` (approved at stage specified), `design` (designed), `implement` (planned), `acceptance` (accepted), `release` (released).
 Which are required depends on `config.autonomy` (guided: all; standard: spec, implement, acceptance, release + design when repos > 1 or a migration;
 autonomous: acceptance, release). `sdlc gate required <id>` is authoritative.
+
+UI features: a repo or feature is "UI" when `ui: true` (derived from the scan, overridable with `repo set --ui` / `feature set <id> ui`). In `standard` autonomy the `design` gate is then also required (`config.ux.design_gate_for_ui`, default true), and acceptance needs `ux-review` evidence (`config.ux.require_ux_review`, default true).
 
 Moving backward: `stage set <id> <earlier> --reason "..."` (clears gates from that stage on, records history).
 
@@ -44,6 +46,6 @@ If Spec Kit asks to create git branches via an extension, prefer `sdlc branches 
 
 ## Routing: stage -> role
 
-proposed/defined -> sdlc-product | specified/designed -> sdlc-architect | planned/implementing -> sdlc-build |
+proposed/defined -> sdlc-product | specified -> sdlc-ux first when the feature is UI (`ui: true`) and `ux.md` is missing or incomplete (`sdlc status <id>` shows it), otherwise sdlc-architect | designed -> sdlc-architect | planned/implementing -> sdlc-build |
 verifying -> sdlc-verify | accepted -> sdlc-product (acceptance walkthrough) | released/done -> sdlc.
 Only the role for the current stage is activated.
