@@ -43,7 +43,11 @@ export function makeFixture() {
 }
 
 export function cli(root, ...args) {
-  const r = spawnSync(process.execPath, [CLI, ...args], { cwd: root, encoding: 'utf8' });
+  return cliEnv(root, {}, ...args);
+}
+
+export function cliEnv(root, env, ...args) {
+  const r = spawnSync(process.execPath, [CLI, ...args], { cwd: root, encoding: 'utf8', env: { ...process.env, SDLC_SKIP_TOOL_PROBE: '1', ...env } });
   return { code: r.status, out: r.stdout, err: r.stderr };
 }
 
