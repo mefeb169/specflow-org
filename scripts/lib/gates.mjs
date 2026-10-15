@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { AUTONOMY_GATES, DEP_MIN_STAGE, GATES, GATE_BEFORE, GATE_STAGE, STAGES, stageIdx } from './lifecycle.mjs';
-import { repoDir, specDirAbs } from './state.mjs';
+import { AUTONOMY_GATES, DEP_MIN_STAGE, GATES, GATE_BEFORE, GATE_STAGE, STAGES, UX_SECTIONS, stageIdx } from './lifecycle.mjs';
+import { isUi, repoDir, specDirAbs, uxConfig } from './state.mjs';
 import { headSha, isGitRepo } from './git.mjs';
 import { latestEvidence, readEvidence } from './verify.mjs';
 
@@ -46,7 +46,21 @@ export function traits(ctx, f) {
   const plan = readIf(dir && path.join(dir, 'plan.md')) || '';
   const tasks = readIf(dir && path.join(dir, 'tasks.md')) || '';
   const migration = !!(dir && fs.existsSync(path.join(dir, 'data-model.md'))) || /migration/i.test(plan) || /migrations\//i.test(tasks);
-  return { multiRepo: f.repos.length > 1, migration };
+  return { multiRepo: f.repos.length > 1, migration, ui: isUi(ctx, f) };
+}
+
+/** Failures for a UI feature's ux.md (empty list = complete). Non-UI features always pass. */
+export function uxCheck(ctx, f) {
+  if (!isUi(ctx, f)) return [];
+  const dir = specDirAbs(ctx, f);
+  const text = readIf(dir && path.join(dir, 'ux.md'));
+  if (text === null) return ['ux.md does not exist (UI feature; write it with sdlc-ux)'];
+  const fail = [];
+  if (!/^Mode:\s*(conform|direction)\b/im.test(text)) fail.push('ux.md lacks a "Mode: conform|direction" line');
+  for (const h of UX_SECTIONS) {
+    if (!new RegExp(`^${h.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*$`, 'im').test(text)) fail.push(`ux.md lacks the heading "${h}"`);
+  }
+  return fail;
 }
 
 export function requiredGates(ctx, f) {
@@ -56,7 +70,7 @@ export function requiredGates(ctx, f) {
     if (!base.includes(g)) return false;
     if (g === 'design' && level === 'standard') {
       const t = traits(ctx, f);
-      return t.multiRepo || t.migration;
+      return t.multiRepo || t.migration || (t.ui && uxConfig(ctx).design_gate_for_ui);
     }
     return true;
   });
@@ -106,6 +120,7 @@ export function checkEntry(ctx, f, target) {
     case 'designed': {
       const plan = readIf(dir && path.join(dir, 'plan.md'));
       need(plan !== null, 'plan.md does not exist');
+      uxCheck(ctx, f).forEach((m) => fail.push(m));
       if (plan !== null && f.repos.length > 1) need(/^##\s+Repository Impact/im.test(plan), 'plan.md lacks a "## Repository Impact" section (required when repos > 1)');
       break;
     }
@@ -140,6 +155,9 @@ export function checkEntry(ctx, f, target) {
         else if ((last.sha || 'none') !== head) fail.push(`verification for "${name}" is stale: evidence at ${String(last.sha).slice(0, 8)}, HEAD is ${head.slice(0, 8)}`);
       }
       need(ev.some((e) => e.kind === 'review' && e.result === 'pass'), 'no passing review evidence (sdlc evidence add --kind review --result pass)');
+      if (isUi(ctx, f) && uxConfig(ctx).require_ux_review) {
+        need(ev.some((e) => e.kind === 'ux-review' && e.result === 'pass'), 'no passing ux-review evidence (UI feature; sdlc evidence add --kind ux-review --result pass)');
+      }
       break;
     }
     case 'released': {

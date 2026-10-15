@@ -53,3 +53,5 @@ export function hook(name, cwd, input) {
 }
 
 export const w = write;
+
+export const UX_MD = '# UX\nMode: conform\n\n## Flows\nreset flow\n\n## Screens and states\nform\n\n## Copy\nSend reset link\n\n## Accessibility\nkeyboard ok\n';

@@ -87,6 +87,11 @@ function cmdInit(args) {
   if (add.length) fs.writeFileSync(gi, have.replace(/\s*$/, have ? '\n' : '') + add.join('\n') + '\n');
   const ctx = load(root);
   const sc = applyScan(ctx, scan);
+  if (ctx.config.repos.some((r) => r.ui === true)) {
+    const ds = path.join(p.sdlc, 'design-system.md');
+    if (fs.existsSync(ds)) skipped.push('.sdlc/design-system.md');
+    else { fs.copyFileSync(path.join(TEMPLATES, 'design-system.md'), ds); created.push('.sdlc/design-system.md'); }
+  }
   const doc = doctor(ctx);
   emit({ root, created, skipped, claude_md: claudeStatus, gitignore_added: add, scan: sc, doctor: doc }, () => [
     `Initialized sdlc workspace at ${root}`,
@@ -103,10 +108,12 @@ function applyScan(ctx, scan) {
   writeJson(paths(ctx.root).scan, scan);
   const added = []; const missing = [];
   for (const r of scan.repos) {
-    if (ctx.config.repos.some((x) => path.resolve(ctx.root, x.path) === path.resolve(ctx.root, r.path))) continue;
+    const known = ctx.config.repos.find((x) => path.resolve(ctx.root, x.path) === path.resolve(ctx.root, r.path));
+    if (known) { if (known.ui === undefined) known.ui = r.ui.is_ui; continue; }
     const cmds = { test: r.command_candidates.test?.cmd || null, build: r.command_candidates.build?.cmd || null, lint: r.command_candidates.lint?.cmd || null };
     ctx.config.repos.push({
       name: r.name, path: r.path, kind: r.is_root ? 'root' : 'git', purpose: '', stack: r.stack, commands: cmds, commands_confirmed: false,
+      ui: r.ui.is_ui,
       speckit: !scan.workspace_speckit.present && r.speckit.present && !r.is_root ? 'repo-local' : 'root', deploy_order: null,
     });
     added.push(r.name);
@@ -165,6 +172,8 @@ function doctor(ctx) {
   }
   ctx.saveConfig();
   const errs = validate(ctx);
+  const uiRepos = ctx.config.repos.filter((r) => r.ui === true).map((r) => r.name);
+  if (uiRepos.length) add('design system doc', fs.existsSync(path.join(ctx.root, '.sdlc', 'design-system.md')), `UI repos: ${uiRepos.join(', ')}; .sdlc/design-system.md ${fs.existsSync(path.join(ctx.root, '.sdlc', 'design-system.md')) ? 'present' : 'missing (sdlc-discover/sdlc-ux should write it)'}`);
   add('state validation', errs.length === 0, errs.length ? errs.join('; ') : 'config + backlog valid');
   for (const r of ctx.config.repos) add(`repo ${r.name}`, fs.existsSync(repoDir(ctx, r)), `${r.path} ${r.commands_confirmed ? '(commands confirmed)' : '(commands NOT confirmed)'}`);
   return checks;
@@ -182,6 +191,10 @@ function cmdRepo(args, ctx) {
   for (const k of ['test', 'build', 'lint']) if (typeof f[k] === 'string') { repo.commands[k] = f[k]; cmdChanged = true; }
   if (cmdChanged) repo.commands_confirmed = false;
   if (typeof f.purpose === 'string') repo.purpose = f.purpose;
+  if (f.ui !== undefined) {
+    if (!['true', 'false'].includes(String(f.ui))) throw new UserError('--ui must be true or false');
+    repo.ui = String(f.ui) === 'true';
+  }
   if (typeof f.stack === 'string') repo.stack = csv(f.stack);
   if (f['deploy-order'] !== undefined) repo.deploy_order = Number(f['deploy-order']);
   if (f.confirm) repo.commands_confirmed = true;
@@ -200,6 +213,7 @@ function cmdFeature(args, ctx) {
     const fid = `F-${String(ctx.backlog.next_id++).padStart(3, '0')}`;
     const feat = {
       id: fid, title, summary: f.summary || '', priority: prio, mvp: !!f.mvp, value: f.value || '', risk: f.risk || 'med',
+      ui: f.ui === undefined ? repos.some((n) => ctx.config.repos.find((r) => r.name === n)?.ui === true) : String(f.ui) === 'true',
       stage: 'proposed', spec_dir: null, repos, branches: {}, deps: [],
       gates: Object.fromEntries(GATES.map((g) => [g, null])), blockers: [], revisit: null, history: [],
     };
@@ -216,9 +230,10 @@ function cmdFeature(args, ctx) {
       case 'priority': if (!PRIORITIES.includes(value)) throw new UserError(`priority must be one of ${PRIORITIES.join(', ')}`); feat.priority = value; break;
       case 'risk': if (!RISKS.includes(value)) throw new UserError(`risk must be one of ${RISKS.join(', ')}`); feat.risk = value; break;
       case 'mvp': feat.mvp = value === 'true'; break;
+      case 'ui': if (!['true', 'false'].includes(value)) throw new UserError('ui must be true or false'); feat.ui = value === 'true'; break;
       case 'repos': feat.repos = checkRepos(ctx, csv(value)); break;
       case 'stage': case 'gates': throw new UserError('stage and gates cannot be set here; use `stage set` / `gate approve`');
-      default: throw new UserError('settable fields: title, summary, priority, mvp, value, risk, repos');
+      default: throw new UserError('settable fields: title, summary, priority, mvp, value, risk, repos, ui');
     }
     logHistory(feat, 'link', `set ${field}`);
     ctx.saveBacklog();
@@ -451,8 +466,8 @@ function cmdValidate(args, ctx) {
 // ---------- main ----------
 const HELP = `sdlc <command>
   init [--root-is-repo] | scan | doctor | validate | brief | status [id] | next
-  repo set <name> [--test c --build c --lint c --purpose s --stack a,b --confirm --deploy-order n]
-  feature add --title s [--priority P2 --mvp --repos a,b --summary s --value s --risk low|med|high]
+  repo set <name> [--test c --build c --lint c --purpose s --stack a,b --ui true|false --confirm --deploy-order n]
+  feature add --title s [--priority P2 --mvp --repos a,b --summary s --value s --risk low|med|high --ui true|false]
   feature set|link|activate <id> ...   dep add|rm <id> <dep> --type t   blocker add|resolve <id> ...
   stage set <id> <stage> [--reason s]  gate approve|required <id> [gate]  check tasks <id>
   branches create <id>  verify run <id> --repo r [--kind k]  evidence add <id> --kind k --result r --note s

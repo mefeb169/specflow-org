@@ -2,6 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { posix, readJson } from './state.mjs';
+import { UI_STACK } from './lifecycle.mjs';
 
 const IGNORE = new Set(['node_modules', '.git', 'vendor', 'dist', 'build', 'target', '.venv', 'venv', '__pycache__', '.next', '.nuxt', '.gradle', '.idea', '.dart_tool', 'Pods', 'coverage', '.sdlc', '.turbo', 'obj', '.terraform']);
 const MAX_FILES = 6000;
@@ -100,6 +101,26 @@ function stackOf(dir, files, manifests) {
   return [...s];
 }
 
+const DS_FILES = /(^|\/)(tailwind\.config\.[a-z]+|components\.json|(theme|tokens)\.[a-z]+|[^/]+\.tokens\.json|(variables|tokens|theme)\.(s?css|less))$|(^|\/)\.storybook\/|(^|\/)theme\/[^/]+/i;
+const DS_DEPS = ['@mui/material', '@chakra-ui/react', 'antd', 'bootstrap', 'styled-components', '@emotion/react', 'vuetify', '@angular/material'];
+const VISUAL_DEPS = ['playwright', '@playwright/test', 'cypress', 'storybook'];
+const VISUAL_FILES = /(^|\/)(playwright\.config\.[a-z]+|cypress\.config\.[a-z]+)$|(^|\/)\.storybook\//i;
+
+function uiInfo(dir, files, manifests, stack) {
+  const deps = new Set();
+  for (const m of manifests.filter((x) => path.basename(x.file) === 'package.json')) {
+    const pkg = readJson(path.join(dir, m.file), {});
+    for (const k of Object.keys({ ...pkg.dependencies, ...pkg.devDependencies })) deps.add(k);
+  }
+  const design_system = cap(files.filter((f) => DS_FILES.test(f)));
+  for (const d of deps) if (DS_DEPS.includes(d) || d.startsWith('@radix-ui/')) design_system.push(`dependency:${d}`);
+  const visual_test_tools = [...new Set([
+    ...[...deps].filter((d) => VISUAL_DEPS.includes(d) || d.startsWith('@storybook/')).map((d) => (d.startsWith('@storybook/') ? 'storybook' : d)),
+    ...files.filter((f) => VISUAL_FILES.test(f)).map((f) => (/storybook/i.test(f) ? 'storybook' : path.basename(f).split('.')[0])),
+  ])];
+  return { is_ui: stack.some((s) => UI_STACK.includes(s)) || design_system.length > 0, design_system, visual_test_tools };
+}
+
 export function scanRepo(root, repoPath, name, isRoot) {
   const dir = path.resolve(root, repoPath);
   const { files } = walk(dir, 4, true);
@@ -119,6 +140,7 @@ export function scanRepo(root, repoPath, name, isRoot) {
     name, path: repoPath, git: hasGit(dir), file_count: files.length, truncated: files.length >= MAX_FILES,
     manifests,
     stack: stackOf(dir, files, manifests),
+    ui: uiInfo(dir, files, manifests, stackOf(dir, files, manifests)),
     monorepo: cap(files.filter((f) => MONOREPO.test(path.basename(f)))).concat(manifests.filter((m) => m.workspaces).map((m) => `${m.file}#workspaces`)),
     instructions: cap(files.filter((f) => INSTRUCTIONS.some((r) => r.test(f) || r.test(path.basename(f))))),
     docs: by(DOCS),

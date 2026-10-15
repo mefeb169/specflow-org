@@ -1,10 +1,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { STAGES, STAGE_ROLE, stageIdx } from './lifecycle.mjs';
-import { depsStatus, openBlockers, requiredGates, checkTasks } from './gates.mjs';
+import { depsStatus, openBlockers, requiredGates, checkTasks, uxCheck } from './gates.mjs';
 import { currentBranch, headSha } from './git.mjs';
 import { latestEvidence, readEvidence } from './verify.mjs';
-import { repoDir, specDirAbs } from './state.mjs';
+import { isUi, repoDir, specDirAbs } from './state.mjs';
 
 const PRIO = { P0: 0, P1: 1, P2: 2, P3: 3 };
 const RISK = { low: 0, med: 1, high: 2 };
@@ -13,6 +13,10 @@ export function nextAction(ctx, f) {
   if (f.stage === 'done') return 'complete';
   const open = openBlockers(f);
   if (open.length) return `resolve blocker ${open[0].id}: ${open[0].text.slice(0, 50)}`;
+  if (f.stage === 'specified') {
+    const ux = uxCheck(ctx, f);
+    if (ux.length) return `write ux.md (flows, states, copy, a11y) [sdlc-ux]: ${ux[0]}`;
+  }
   const base = STAGE_ROLE[f.stage];
   return `${base.action} [${base.role || '-'}]`;
 }
@@ -60,7 +64,8 @@ export function featureDetail(ctx, f) {
     const head = repo ? headSha(repoDir(ctx, repo)) || 'none' : null;
     return { repo: name, last: last ? { at: last.at, kind: last.kind, result: last.result, sha: last.sha } : null, head, fresh: !!last && last.sha === head };
   });
-  return { ...statusRow(ctx, f), spec_dir: f.spec_dir, branches: f.branches, gates: f.gates, required_gates: requiredGates(ctx, f), pending_gates: requiredGates(ctx, f).filter((g) => !f.gates[g]), deps: f.deps, blockers: f.blockers, held_by: depsStatus(ctx, f), tasks: tasks && { total: tasks.total, done: tasks.done, per_repo: tasks.perRepo }, evidence, revisit: f.revisit };
+  const uxFailures = uxCheck(ctx, f);
+  return { ...statusRow(ctx, f), ui: isUi(ctx, f), ux: { required: isUi(ctx, f), complete: uxFailures.length === 0, failures: uxFailures }, spec_dir: f.spec_dir, branches: f.branches, gates: f.gates, required_gates: requiredGates(ctx, f), pending_gates: requiredGates(ctx, f).filter((g) => !f.gates[g]), deps: f.deps, blockers: f.blockers, held_by: depsStatus(ctx, f), tasks: tasks && { total: tasks.total, done: tasks.done, per_repo: tasks.perRepo }, evidence, revisit: f.revisit };
 }
 
 export function warnings(ctx) {

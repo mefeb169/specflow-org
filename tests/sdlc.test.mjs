@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { makeFixture, cli, hook, w, sh } from './make-fixture.mjs';
+import { makeFixture, cli, hook, w, sh, UX_MD } from './make-fixture.mjs';
 
 const j = (root, ...a) => JSON.parse(cli(root, ...a, '--json').out);
 const readBacklog = (root) => JSON.parse(fs.readFileSync(path.join(root, '.sdlc', 'backlog.json'), 'utf8'));
@@ -21,8 +21,9 @@ function addFeature(root, extra = []) {
   return out.out.trim();
 }
 
-function writeSpec(root, { clarify = false, plan = true, tasks = 'tagged' } = {}) {
+function writeSpec(root, { clarify = false, plan = true, tasks = 'tagged', ux = true } = {}) {
   const dir = path.join(root, 'specs', '001-password-reset');
+  if (ux) w(path.join(dir, 'ux.md'), UX_MD);
   w(path.join(dir, 'spec.md'), `# Spec\n${clarify ? '[NEEDS CLARIFICATION: token lifetime]\n' : ''}`);
   if (plan) w(path.join(dir, 'plan.md'), '# Plan\n## Repository Impact\n| backend | endpoints |\n');
   if (tasks === 'tagged') w(path.join(dir, 'tasks.md'), '- [ ] T001 [repo:backend] endpoint\n- [ ] T002 [repo:frontend] page\n');
@@ -149,6 +150,10 @@ test('4. stage refusals are driven by real files and evidence', () => {
   assert.equal(r.code, 1);
   assert.match(r.err, /review evidence/);
   assert.equal(cli(fx.root, 'evidence', 'add', id, '--kind', 'review', '--result', 'pass', '--note', 'ok').code, 0);
+  r = cli(fx.root, 'stage', 'set', id, 'accepted');
+  assert.equal(r.code, 1);
+  assert.match(r.err, /ux-review/);
+  assert.equal(cli(fx.root, 'evidence', 'add', id, '--kind', 'ux-review', '--repo', 'frontend', '--result', 'pass', '--note', 'manual: no screenshot').code, 0);
 
   // a new commit makes the evidence stale
   w(path.join(fx.be, 'src', 'index.js'), 'console.log(99)\n');
@@ -326,7 +331,9 @@ test('10. validate catches unknown repo names and bad references', () => {
 test('11. gate required reflects autonomy and traits', () => {
   const fx = setup();
   const single = cli(fx.root, 'feature', 'add', '--title', 'Solo', '--repos', 'frontend').out.trim();
-  assert.deepEqual(j(fx.root, 'gate', 'required', single).required, ['spec', 'implement', 'acceptance', 'release']);
+  assert.deepEqual(j(fx.root, 'gate', 'required', single).required, ['spec', 'design', 'implement', 'acceptance', 'release'], 'frontend is a UI repo: design gate required');
+  const backendOnly = cli(fx.root, 'feature', 'add', '--title', 'API only', '--repos', 'backend').out.trim();
+  assert.deepEqual(j(fx.root, 'gate', 'required', backendOnly).required, ['spec', 'implement', 'acceptance', 'release']);
   const multi = addFeature(fx.root);
   assert.ok(j(fx.root, 'gate', 'required', multi).required.includes('design'));
   fx.cleanup();

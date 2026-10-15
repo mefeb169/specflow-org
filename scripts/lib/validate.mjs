@@ -14,11 +14,14 @@ export function validate(ctx) {
     repoNames.add(r.name);
     if (!fs.existsSync(repoDir(ctx, r))) e.push(`repo "${r.name}" path does not exist: ${r.path}`);
   }
+  for (const r of config.repos || []) if (r.ui !== undefined && typeof r.ui !== 'boolean') e.push(`repo "${r.name}": ui must be a boolean`);
+  for (const [k, v] of Object.entries(config.ux || {})) if (typeof v !== 'boolean') e.push(`config.ux.${k} must be a boolean`);
   const ids = new Set(backlog.features.map((f) => f.id));
   if (ids.size !== backlog.features.length) e.push('duplicate feature ids in backlog');
   for (const f of backlog.features) {
     const at = (m) => e.push(`${f.id}: ${m}`);
     if (!STAGES.includes(f.stage)) at(`unknown stage "${f.stage}"`);
+    if (f.ui !== undefined && typeof f.ui !== 'boolean') at('ui must be a boolean');
     if (!PRIORITIES.includes(f.priority)) at(`unknown priority "${f.priority}"`);
     for (const r of f.repos) if (!repoNames.has(r)) at(`unknown repo "${r}"`);
     for (const r of Object.keys(f.branches || {})) if (!repoNames.has(r)) at(`branch recorded for unknown repo "${r}"`);

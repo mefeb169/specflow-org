@@ -74,6 +74,14 @@ export function getRepo(ctx, name) {
 
 export const repoDir = (ctx, repo) => path.resolve(ctx.root, repo.path);
 
+export const uxConfig = (ctx) => ({ design_gate_for_ui: true, require_ux_review: true, ...(ctx.config.ux || {}) });
+
+/** A feature is UI when `ui` is a boolean, otherwise derived from its repos' `ui` flags (old backlogs lack the field). */
+export function isUi(ctx, f) {
+  if (typeof f.ui === 'boolean') return f.ui;
+  return f.repos.some((n) => ctx.config.repos.find((r) => r.name === n)?.ui === true);
+}
+
 export function logHistory(f, event, detail) {
   f.history.push({ at: now(), event, detail });
 }
