@@ -1,5 +1,7 @@
 # End-to-end run report (2026-10-15)
 
+> Historical report of the 0.3 run, written under the former names (plugin `specflow-org`, CLI `sdlc`, state folder `.sdlc/`). They are `specflow`, `specflow` / `sflow` and `.specflow/` since 0.4.0.
+
 One feature, taken from `proposed` to `accepted` through the installed plugin and real Spec Kit 1.2.0.
 
 ## Setup

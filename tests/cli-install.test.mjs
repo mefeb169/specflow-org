@@ -18,10 +18,11 @@ function fakeClaude({ failOn = null } = {}) {
 const args = process.argv.slice(2);
 fs.appendFileSync(${JSON.stringify(log)}, JSON.stringify({ args, cwd: process.cwd() }) + '\\n');
 if (args[0] === '--version') { console.log('9.9.9 (fake)'); process.exit(0); }
+if (args.join(' ') === 'plugin marketplace list') { console.log(process.env.FAKE_MARKETPLACES || 'Configured marketplaces:'); process.exit(0); }
 if (${JSON.stringify(failOn)} && args.join(' ').includes(${JSON.stringify(failOn)})) { console.error('boom'); process.exit(3); }
 console.log('ok');
 `);
-  const calls = () => (fs.existsSync(log) ? fs.readFileSync(log, 'utf8').trim().split('\n').map(JSON.parse).filter((c) => c.args[0] !== '--version') : []);
+  const calls = () => (fs.existsSync(log) ? fs.readFileSync(log, 'utf8').trim().split('\n').map(JSON.parse).filter((c) => c.args[0] !== '--version' && c.args.join(' ') !== 'plugin marketplace list') : []);
   return { bin, calls, cleanup: () => fs.rmSync(dir, { recursive: true, force: true }) };
 }
 
@@ -122,5 +123,39 @@ test('INS-6. install works with no workspace (no .specflow/ needed)', () => {
   const claude = fakeClaude();
   const dir = tmpDir();
   assert.equal(cliEnv(dir, { SPECFLOW_CLAUDE_BIN: claude.bin }, 'install').code, 0, 'no .specflow/ needed');
+  claude.cleanup();
+});
+
+const legacyList = (folder) => `Configured marketplaces:
+
+  ❯ specflow-org-marketplace
+    Source: Folder (${folder})
+`;
+
+test('INS-7. a stale specflow-org marketplace on the same folder blocks install unless --fix-legacy', () => {
+  const claude = fakeClaude();
+  const env = { SPECFLOW_CLAUDE_BIN: claude.bin, FAKE_MARKETPLACES: legacyList(REPO) };
+  const blocked = cliEnv(tmpDir(), env, 'install');
+  assert.equal(blocked.code, 1);
+  assert.match(blocked.err, /would shadow the new "specflow-marketplace"/);
+  assert.match(blocked.err, /claude plugin marketplace remove specflow-org-marketplace/);
+  assert.equal(claude.calls().length, 0, 'nothing was changed');
+
+  const fixed = cliEnv(tmpDir(), env, 'install', '--fix-legacy');
+  assert.equal(fixed.code, 0, fixed.err);
+  const calls = claude.calls().map((c) => c.args.join(' '));
+  assert.equal(calls.length, 3);
+  assert.equal(calls[0], 'plugin marketplace remove specflow-org-marketplace');
+  assert.match(calls[1], /^plugin marketplace add /);
+  assert.equal(calls[2], 'plugin install specflow@specflow-marketplace --scope project');
+  claude.cleanup();
+});
+
+test('INS-8. a legacy marketplace pointing elsewhere does not block install', () => {
+  const claude = fakeClaude();
+  const env = { SPECFLOW_CLAUDE_BIN: claude.bin, FAKE_MARKETPLACES: legacyList(path.join(os.tmpdir(), 'some-other-folder')) };
+  const r = cliEnv(tmpDir(), env, 'install');
+  assert.equal(r.code, 0, r.err);
+  assert.equal(claude.calls().length, 2);
   claude.cleanup();
 });

@@ -38,6 +38,24 @@ function legacyCleanup(dir, scope) {
   return cmds;
 }
 
+const LEGACY_MARKETPLACE = 'specflow-org-marketplace';
+const samePath = (a, b) => path.resolve(a).replace(/[\\/]+$/, '').toLowerCase() === path.resolve(b).replace(/[\\/]+$/, '').toLowerCase();
+
+/**
+ * A 0.3 install registered the marketplace `specflow-org-marketplace` for this very folder. Claude Code reuses a
+ * registration by path, so the stale entry would shadow the renamed marketplace and the plugin would "not be found".
+ */
+function findLegacyMarketplace(dir, source) {
+  const r = runClaude(['plugin', 'marketplace', 'list'], dir);
+  if (r.status !== 0) return null;
+  const lines = r.out.split(/\r?\n/);
+  const i = lines.findIndex((l) => l.includes(LEGACY_MARKETPLACE));
+  if (i < 0) return null;
+  const src = (lines[i + 1] || '').replace(/^\s*Source:\s*/, '').trim();
+  const folder = (src.match(/\(([^)]+)\)/) || [])[1] || src;
+  return { name: LEGACY_MARKETPLACE, source: src, shadows: fs.existsSync(source) && samePath(folder, source) };
+}
+
 function common(args, verb) {
   const f = args.flags;
   const scope = typeof f.scope === 'string' ? f.scope : 'project';
@@ -79,6 +97,14 @@ export function cmdInstall(args) {
     ['plugin', 'install', `${PLUGIN}@${MARKETPLACE}`, '--scope', scope],
   ];
   const legacy = legacyCleanup(dir, scope);
+  const stale = findLegacyMarketplace(dir, source);
+  if (stale?.shadows) {
+    const fix = ['plugin', 'marketplace', 'remove', LEGACY_MARKETPLACE];
+    if (!args.flags['fix-legacy']) {
+      throw new UserError(`An old marketplace entry "${LEGACY_MARKETPLACE}" (${stale.source}) points at this folder and would shadow the new "${MARKETPLACE}", so the plugin would not be found.\nRemove it and run install again:\n  ${show(fix)}\nor re-run with --fix-legacy to do that for you.`);
+    }
+    steps.unshift(fix);
+  }
   const done = execute(steps, dir);
   const next = 'Open `claude` in this folder and say "set up specflow here".';
   emit({ ok: true, scope, dir, source, commands: done, legacy_cleanup: legacy, next }, () => [

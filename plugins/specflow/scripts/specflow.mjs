@@ -15,7 +15,7 @@ import { cmdInstall, cmdUninstall } from './commands/install.mjs';
 
 const HELP = `specflow <command>   (alias: sflow)
   init [--root-is-repo] | scan | doctor | validate | brief | status [id] | next | upgrade [--apply]
-  install [--scope project|user|local] [--dir path] [--source path|owner/repo] | uninstall [--scope s] [--dir path] [--remove-marketplace]
+  install [--scope project|user|local] [--dir path] [--source path|owner/repo] [--fix-legacy] | uninstall [--scope s] [--dir path] [--remove-marketplace]
   --version
   repo set <name> [--test c --build c --lint c --purpose s --stack a,b --ui true|false --confirm --deploy-order n]
   feature add --title s [--priority P2 --mvp --repos a,b --summary s --value s --risk low|med|high --ui true|false]

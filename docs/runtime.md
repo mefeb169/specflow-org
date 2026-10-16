@@ -37,3 +37,10 @@ claude plugin install specflow@specflow-marketplace --scope project
 
 ## Evals
 Granting `Bash` to an eval run needs an OS sandbox backend; Windows has none, so Bash-dependent cases only run on Linux/macOS. See `plugins/specflow/evals/README.md`.
+
+## Naming and installation facts (0.4.0, Windows, Claude Code 2.1.x)
+- **No bare `/specflow` skill.** A `SKILL.md` at the plugin root is not exposed when `skills/` exists, and a skill named like its plugin becomes `specflow:specflow`. The orchestrator is therefore `specflow:flow`.
+- **Marketplace registrations are keyed by folder path.** After a plugin rename, `claude plugin marketplace add <same folder>` reports the old registration ("already on disk") and the renamed plugin is "not found". `specflow install --fix-legacy` removes the old `specflow-org-marketplace` first. Removing a marketplace also uninstalls the plugins installed from it.
+- **Global command:** `npm install -g .` from the repository creates a symlink to the repository plus bash, cmd and PowerShell shims for `specflow` and `sflow` (checked with a temporary `--prefix`, then run from another directory). `git pull` therefore updates the command.
+- **Directory marketplaces are read in place:** edits under the plugin folder take effect on the next session or `/reload-plugins`.
+- **Migration check:** a real 0.3 workspace (feature at `accepted`) migrated with `specflow upgrade --apply`; backlog, evidence and specs were intact, `validate` passed.

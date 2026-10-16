@@ -1,6 +1,19 @@
 # Changelog
 
-Format: [Keep a Changelog](https://keepachangelog.com/). Versions follow the plugin version in `plugins/specflow-org/.claude-plugin/plugin.json`.
+Format: [Keep a Changelog](https://keepachangelog.com/). Versions follow the plugin version in `plugins/specflow/.claude-plugin/plugin.json`.
+
+## [0.4.0] - 2026-10-16
+Renamed to **specflow**. Names are now frozen.
+### Changed (breaking)
+- Plugin `specflow-org` -> `specflow`, marketplace `specflow-marketplace` (install id `specflow@specflow-marketplace`), skills `specflow:flow`, `specflow:product`, `specflow:ux`, ... (the orchestrator is `specflow:flow`: Claude Code does not expose a plugin-root skill, and a skill named like the plugin becomes `specflow:specflow`).
+- CLI `sdlc` -> `specflow` (alias `sflow`); workspace state folder `.sdlc/` -> `.specflow/`; env vars `SDLC_*` -> `SPECFLOW_*`; CLAUDE.md markers `sdlc:` -> `specflow:`.
+### Added
+- Installable command-line package `@mefeb169/specflow` (repo root `package.json`) providing `specflow` and `sflow`; `--version`.
+- `specflow install` / `uninstall`: install the plugin for a project from a local copy or `owner/repo`, no marketplace listing needed; `--fix-legacy` removes a stale `specflow-org-marketplace` registration that would otherwise shadow the new marketplace.
+- Legacy `.sdlc/` workspaces keep working (and stay guarded) until `specflow upgrade --apply` migrates them (migration 0.4.0: renames the folder, rewrites the CLAUDE.md block and the .gitignore line).
+- README rewritten with local-install, per-project, team and troubleshooting instructions.
+### Fixed
+- Upgrade now saves to the right state folder after renaming it mid-run.
 
 ## [0.3.0] - 2026-10-15
 First public release candidate.
