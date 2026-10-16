@@ -5,7 +5,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { UserError, readJson } from '../lib/state.mjs';
-import { emit } from './io.mjs';
+import { emit, io } from './io.mjs';
 
 export const PLUGIN = 'specflow';
 export const MARKETPLACE = 'specflow-marketplace';
@@ -53,11 +53,12 @@ function common(args, verb) {
 
 function execute(steps, dir) {
   const done = [];
+  const say = io.json ? console.error : console.log; // keep stdout clean for --json
   for (const args of steps) {
     const cmd = show(args);
-    console.log(`$ ${cmd}`);
+    say(`$ ${cmd}`);
     const r = runClaude(args, dir);
-    if (r.out) console.log(r.out);
+    if (r.out) say(r.out);
     done.push({ command: cmd, status: r.status });
     if (r.status !== 0) {
       throw new UserError(`Failed: ${cmd} (exit ${r.status}). Run the remaining steps by hand:\n${steps.slice(steps.indexOf(args)).map((a) => `  ${show(a)}`).join('\n')}`);
