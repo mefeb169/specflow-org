@@ -1,10 +1,18 @@
 {
-  "name": "sdlc-framework",
-  "version": "0.1.0",
-  "description": "AI-driven SDLC framework for Claude Code (plugin + sdlc CLI)",
+  "name": "@mefeb169/specflow",
+  "version": "0.4.0",
+  "description": "specflow: a role-based AI software organization for Claude Code (plugin) and its specflow / sflow command-line tool",
   "type": "module",
   "private": true,
-  "bin": { "sdlc": "scripts/sdlc.mjs" },
+  "license": "MIT",
+  "author": { "name": "Usama", "email": "mefeb169@gmail.com", "url": "https://github.com/mefeb169" },
+  "repository": { "type": "git", "url": "git+https://github.com/mefeb169/specflow.git" },
+  "homepage": "https://github.com/mefeb169/specflow",
+  "bin": {
+    "specflow": "plugins/specflow/scripts/specflow.mjs",
+    "sflow": "plugins/specflow/scripts/specflow.mjs"
+  },
+  "files": ["plugins/specflow", ".claude-plugin", "LICENSE", "README.md"],
   "engines": { "node": ">=18" },
   "scripts": { "test": "node --test" }
 }

@@ -1,11 +1,11 @@
 {
-  "name": "specflow-org-marketplace",
-  "description": "Marketplace for the specflow-org plugin",
+  "name": "specflow-marketplace",
+  "description": "Marketplace for the specflow plugin",
   "owner": { "name": "Usama", "email": "mefeb169@gmail.com" },
   "plugins": [
     {
-      "name": "specflow-org",
-      "source": "./plugins/specflow-org",
+      "name": "specflow",
+      "source": "./plugins/specflow",
       "description": "Role-based AI SDLC framework that orchestrates GitHub Spec Kit across multi-repo product workspaces",
       "category": "development",
       "tags": ["sdlc", "spec-kit", "workflow", "multi-repo"]

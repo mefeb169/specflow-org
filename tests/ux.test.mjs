@@ -5,10 +5,10 @@ import path from 'node:path';
 import { makeFixture, cli, w, UX_MD } from './make-fixture.mjs';
 
 const j = (root, ...a) => JSON.parse(cli(root, ...a, '--json').out);
-const readBacklog = (root) => JSON.parse(fs.readFileSync(path.join(root, '.sdlc', 'backlog.json'), 'utf8'));
-const readCfg = (root) => JSON.parse(fs.readFileSync(path.join(root, '.sdlc', 'config.json'), 'utf8'));
+const readBacklog = (root) => JSON.parse(fs.readFileSync(path.join(root, '.specflow', 'backlog.json'), 'utf8'));
+const readCfg = (root) => JSON.parse(fs.readFileSync(path.join(root, '.specflow', 'config.json'), 'utf8'));
 const setCfg = (root, fn) => {
-  const p = path.join(root, '.sdlc', 'config.json');
+  const p = path.join(root, '.specflow', 'config.json');
   const c = readCfg(root);
   fn(c);
   fs.writeFileSync(p, JSON.stringify(c));
@@ -37,7 +37,7 @@ test('UX-1. scan marks UI repos and finds design-system evidence', () => {
   w(path.join(fx.fe, 'tailwind.config.js'), 'module.exports = {}\n');
   w(path.join(fx.fe, 'playwright.config.ts'), 'export default {}\n');
   assert.equal(cli(fx.root, 'init').code, 0);
-  const scan = JSON.parse(fs.readFileSync(path.join(fx.root, '.sdlc', 'cache', 'scan.json'), 'utf8'));
+  const scan = JSON.parse(fs.readFileSync(path.join(fx.root, '.specflow', 'cache', 'scan.json'), 'utf8'));
   const fe = scan.repos.find((r) => r.name === 'frontend');
   const be = scan.repos.find((r) => r.name === 'backend');
   assert.equal(fe.ui.is_ui, true);
@@ -47,7 +47,7 @@ test('UX-1. scan marks UI repos and finds design-system evidence', () => {
   const cfg = readCfg(fx.root);
   assert.equal(cfg.repos.find((r) => r.name === 'frontend').ui, true);
   assert.equal(cfg.repos.find((r) => r.name === 'backend').ui, false);
-  // status surfaces the scan's design-system evidence for sdlc-ux's mode choice
+  // status surfaces the scan's design-system evidence for specflow:ux's mode choice
   const id = cli(fx.root, 'feature', 'add', '--title', 'FE', '--repos', 'frontend').out.trim();
   const d = j(fx.root, 'status', id);
   assert.ok(d.ui_evidence.frontend.design_system.includes('tailwind.config.js'));
@@ -124,7 +124,7 @@ test('UX-6. accepted needs ux-review for UI features unless config waives it', (
   const fx = setup();
   const { id, dir } = uiFeature(fx.root, { ux: true });
   w(path.join(dir, 'tasks.md'), '- [X] T1 [repo:backend] a\n- [X] T2 [repo:frontend] b\n');
-  const bp = path.join(fx.root, '.sdlc', 'backlog.json');
+  const bp = path.join(fx.root, '.specflow', 'backlog.json');
   const b = readBacklog(fx.root);
   b.features[0].stage = 'verifying';
   fs.writeFileSync(bp, JSON.stringify(b));
@@ -145,7 +145,7 @@ test('UX-6. accepted needs ux-review for UI features unless config waives it', (
   w(path.join(f2.dir, 'tasks.md'), '- [X] T1 [repo:backend] a\n- [X] T2 [repo:frontend] b\n');
   const b2 = readBacklog(fx2.root);
   b2.features[0].stage = 'verifying';
-  fs.writeFileSync(path.join(fx2.root, '.sdlc', 'backlog.json'), JSON.stringify(b2));
+  fs.writeFileSync(path.join(fx2.root, '.specflow', 'backlog.json'), JSON.stringify(b2));
   setCfg(fx2.root, (c) => { c.ux = { require_ux_review: false }; });
   for (const repo of ['backend', 'frontend']) {
     cli(fx2.root, 'repo', 'set', repo, '--confirm');
@@ -157,16 +157,16 @@ test('UX-6. accepted needs ux-review for UI features unless config waives it', (
   fx2.cleanup();
 });
 
-test('UX-7. next/status route UI features to sdlc-ux while ux.md is incomplete', () => {
+test('UX-7. next/status route UI features to specflow:ux while ux.md is incomplete', () => {
   const fx = setup();
   const { id, dir } = uiFeature(fx.root);
-  assert.match(j(fx.root, 'status').find((r) => r.id === id).next, /sdlc-ux/);
-  assert.match(j(fx.root, 'next').ready[0].next_action, /sdlc-ux/);
+  assert.match(j(fx.root, 'status').find((r) => r.id === id).next, /specflow:ux/);
+  assert.match(j(fx.root, 'next').ready[0].next_action, /specflow:ux/);
   const d = j(fx.root, 'status', id);
   assert.equal(d.ux.complete, false);
   assert.ok(d.ux.failures.length > 0);
   w(path.join(dir, 'ux.md'), UX_MD);
-  assert.match(j(fx.root, 'status').find((r) => r.id === id).next, /sdlc-architect/);
+  assert.match(j(fx.root, 'status').find((r) => r.id === id).next, /specflow:architect/);
   assert.equal(j(fx.root, 'status', id).ux.complete, true);
   fx.cleanup();
 });
@@ -174,7 +174,7 @@ test('UX-7. next/status route UI features to sdlc-ux while ux.md is incomplete',
 test('UX-8. validate flags non-boolean ui; backlogs without ui still work', () => {
   const fx = setup();
   const id = cli(fx.root, 'feature', 'add', '--title', 'FE', '--repos', 'frontend').out.trim();
-  const bp = path.join(fx.root, '.sdlc', 'backlog.json');
+  const bp = path.join(fx.root, '.specflow', 'backlog.json');
   const b = readBacklog(fx.root);
   delete b.features[0].ui;
   fs.writeFileSync(bp, JSON.stringify(b));
@@ -190,17 +190,17 @@ test('UX-8. validate flags non-boolean ui; backlogs without ui still work', () =
 
 test('UX-9. init writes design-system.md only for UI workspaces and never overwrites it', () => {
   const fx = setup();
-  const ds = path.join(fx.root, '.sdlc', 'design-system.md');
+  const ds = path.join(fx.root, '.specflow', 'design-system.md');
   assert.ok(fs.existsSync(ds));
   fs.writeFileSync(ds, 'MY DESIGN SYSTEM\n');
   const r = JSON.parse(cli(fx.root, 'init', '--json').out);
-  assert.ok(r.skipped.includes('.sdlc/design-system.md'));
+  assert.ok(r.skipped.includes('.specflow/design-system.md'));
   assert.equal(fs.readFileSync(ds, 'utf8'), 'MY DESIGN SYSTEM\n');
   fx.cleanup();
 
   const only = makeFixture();
   fs.rmSync(only.fe, { recursive: true, force: true });
   assert.equal(cli(only.root, 'init').code, 0);
-  assert.ok(!fs.existsSync(path.join(only.root, '.sdlc', 'design-system.md')));
+  assert.ok(!fs.existsSync(path.join(only.root, '.specflow', 'design-system.md')));
   only.cleanup();
 });

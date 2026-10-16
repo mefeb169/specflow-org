@@ -1,0 +1,107 @@
+import fs from 'node:fs';
+import path from 'node:path';
+
+export class UserError extends Error {}
+
+export const now = () => new Date().toISOString();
+export const norm = (p) => (process.platform === 'win32' ? path.resolve(p).toLowerCase() : path.resolve(p));
+export const posix = (p) => p.split(path.sep).join('/');
+
+// Workspace state lives in .specflow/. Workspaces created before 0.4 use the legacy .sdlc/ and keep working until upgraded.
+export const STATE_DIR = '.specflow';
+export const LEGACY_STATE_DIR = '.sdlc';
+
+/** Name of the state dir in use at `root`: legacy only when it exists and the new one does not. */
+export function stateDirName(root) {
+  if (fs.existsSync(path.join(root, STATE_DIR, 'config.json'))) return STATE_DIR;
+  if (fs.existsSync(path.join(root, LEGACY_STATE_DIR, 'config.json'))) return LEGACY_STATE_DIR;
+  return STATE_DIR;
+}
+export const isLegacy = (root) => stateDirName(root) === LEGACY_STATE_DIR;
+
+export function findRoot(start) {
+  let d = path.resolve(start || process.cwd());
+  for (;;) {
+    if (fs.existsSync(path.join(d, STATE_DIR, 'config.json')) || fs.existsSync(path.join(d, LEGACY_STATE_DIR, 'config.json'))) return d;
+    const p = path.dirname(d);
+    if (p === d) return null;
+    d = p;
+  }
+}
+
+export function readJson(file, fallback) {
+  try {
+    return JSON.parse(fs.readFileSync(file, 'utf8'));
+  } catch (e) {
+    if (fallback !== undefined && e.code === 'ENOENT') return fallback;
+    throw new UserError(`Cannot read ${file}: ${e.message}`);
+  }
+}
+
+export function writeJson(file, data) {
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  const tmp = `${file}.tmp-${process.pid}`;
+  fs.writeFileSync(tmp, JSON.stringify(data, null, 2) + '\n');
+  fs.renameSync(tmp, file);
+}
+
+export const paths = (root) => {
+  const dir = path.join(root, stateDirName(root));
+  return {
+    specflow: dir,
+    config: path.join(dir, 'config.json'),
+    backlog: path.join(dir, 'backlog.json'),
+    cache: path.join(dir, 'cache'),
+    scan: path.join(dir, 'cache', 'scan.json'),
+    specs: path.join(root, 'specs'),
+  };
+};
+
+export function load(root) {
+  const p = paths(root);
+  const ctx = {
+    root,
+    config: readJson(p.config),
+    backlog: readJson(p.backlog, { schema_version: 1, next_id: 1, features: [] }),
+    // Paths are resolved at save time: an upgrade may rename the legacy state dir mid-run.
+    saveConfig() { writeJson(paths(root).config, ctx.config); },
+    saveBacklog() { writeJson(paths(root).backlog, ctx.backlog); },
+  };
+  return ctx;
+}
+
+export function requireRoot(start) {
+  const root = findRoot(start);
+  if (!root) throw new UserError('No .specflow/ workspace found. Run `specflow init` at the product root first.');
+  return root;
+}
+
+export function getFeature(ctx, id) {
+  const f = ctx.backlog.features.find((x) => x.id === id);
+  if (!f) throw new UserError(`Unknown feature ${id}`);
+  return f;
+}
+
+export function getRepo(ctx, name) {
+  const r = ctx.config.repos.find((x) => x.name === name);
+  if (!r) throw new UserError(`Unknown repo "${name}". Registered: ${ctx.config.repos.map((x) => x.name).join(', ') || '(none)'}`);
+  return r;
+}
+
+export const repoDir = (ctx, repo) => path.resolve(ctx.root, repo.path);
+
+export const uxConfig = (ctx) => ({ design_gate_for_ui: true, require_ux_review: true, ...(ctx.config.ux || {}) });
+
+/** A feature is UI when `ui` is a boolean, otherwise derived from its repos' `ui` flags (old backlogs lack the field). */
+export function isUi(ctx, f) {
+  if (typeof f.ui === 'boolean') return f.ui;
+  return f.repos.some((n) => ctx.config.repos.find((r) => r.name === n)?.ui === true);
+}
+
+export function logHistory(f, event, detail) {
+  f.history.push({ at: now(), event, detail });
+}
+
+export function specDirAbs(ctx, f) {
+  return f.spec_dir ? path.resolve(ctx.root, f.spec_dir) : null;
+}

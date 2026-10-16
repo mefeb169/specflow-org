@@ -25,5 +25,5 @@ jobs:
         if: matrix.node == 22
         run: |
           npm install -g @anthropic-ai/claude-code
-          claude plugin validate plugins/specflow-org
+          claude plugin validate plugins/specflow
           claude plugin validate .

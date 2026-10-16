@@ -4,8 +4,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { makeFixture, cli, hook, w } from './make-fixture.mjs';
 
-const readCfg = (root) => JSON.parse(fs.readFileSync(path.join(root, '.sdlc', 'config.json'), 'utf8'));
-const writeCfg = (root, c) => fs.writeFileSync(path.join(root, '.sdlc', 'config.json'), JSON.stringify(c, null, 2));
+const readCfg = (root) => JSON.parse(fs.readFileSync(path.join(root, '.specflow', 'config.json'), 'utf8'));
+const writeCfg = (root, c) => fs.writeFileSync(path.join(root, '.specflow', 'config.json'), JSON.stringify(c, null, 2));
 
 function fakeSpecKit(root, { version = '1.2.0', style = 'skills' } = {}) {
   w(path.join(root, '.specify', 'init-options.json'), JSON.stringify({ speckit_version: version, integration: 'claude' }));
@@ -55,10 +55,10 @@ test('CMP-2. upgrade is a dry run by default, additive when applied, and never t
   writeCfg(fx.root, c);
   const claudeBefore = fs.readFileSync(path.join(fx.root, 'CLAUDE.md'), 'utf8');
   fs.writeFileSync(path.join(fx.root, 'CLAUDE.md'), claudeBefore.replace('Gates are human approvals', 'OLD BLOCK TEXT'));
-  const product = path.join(fx.root, '.sdlc', 'product.md');
+  const product = path.join(fx.root, '.specflow', 'product.md');
   fs.writeFileSync(product, 'MY PRODUCT VISION\n');
 
-  assert.match(cli(fx.root, 'brief').out, /run `sdlc upgrade`/);
+  assert.match(cli(fx.root, 'brief').out, /run `specflow upgrade`/);
   const dry = cli(fx.root, 'upgrade', '--json');
   assert.equal(dry.code, 0, dry.err);
   const plan = JSON.parse(dry.out);
@@ -72,7 +72,7 @@ test('CMP-2. upgrade is a dry run by default, additive when applied, and never t
   const done = cli(fx.root, 'upgrade', '--apply', '--json');
   assert.equal(done.code, 0, done.err);
   const after = readCfg(fx.root);
-  assert.equal(after.framework_version, '0.3.0');
+  assert.equal(after.framework_version, '0.4.0');
   assert.deepEqual(after.ux, { design_gate_for_ui: true, require_ux_review: true });
   assert.equal(after.guards.deny_in_unattended_modes, true);
   assert.deepEqual(after.guards.extra_bash_patterns, ['my-custom-pattern'], 'user customization preserved');
@@ -83,7 +83,7 @@ test('CMP-2. upgrade is a dry run by default, additive when applied, and never t
   assert.equal(fs.readFileSync(product, 'utf8'), 'MY PRODUCT VISION\n');
 
   assert.match(cli(fx.root, 'upgrade').out, /up to date/);
-  assert.doesNotMatch(cli(fx.root, 'brief').out, /sdlc upgrade/);
+  assert.doesNotMatch(cli(fx.root, 'brief').out, /specflow upgrade/);
   assert.equal(cli(fx.root, 'validate').code, 0);
   fx.cleanup();
 });
@@ -91,8 +91,8 @@ test('CMP-2. upgrade is a dry run by default, additive when applied, and never t
 test('CMP-3. upgrade --apply is gated by the pre-tool-use hook', () => {
   const fx = makeFixture();
   cli(fx.root, 'init');
-  const r = hook('pre-tool-use', fx.root, { tool_name: 'Bash', tool_input: { command: 'node "/p/scripts/sdlc.mjs" upgrade --apply' } });
+  const r = hook('pre-tool-use', fx.root, { tool_name: 'Bash', tool_input: { command: 'node "/p/scripts/specflow.mjs" upgrade --apply' } });
   assert.equal(r.json.hookSpecificOutput.permissionDecision, 'ask');
-  assert.equal(hook('pre-tool-use', fx.root, { tool_name: 'Bash', tool_input: { command: 'node /p/scripts/sdlc.mjs upgrade' } }).json, null);
+  assert.equal(hook('pre-tool-use', fx.root, { tool_name: 'Bash', tool_input: { command: 'node /p/scripts/specflow.mjs upgrade' } }).json, null);
   fx.cleanup();
 });

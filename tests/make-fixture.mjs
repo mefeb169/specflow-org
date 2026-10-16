@@ -5,8 +5,8 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url)); // import.meta.dirname needs Node >= 20.11
-export const CLI = path.resolve(HERE, '..', 'plugins', 'specflow-org', 'scripts', 'sdlc.mjs');
-export const HOOKS = path.resolve(HERE, '..', 'plugins', 'specflow-org', 'scripts', 'hooks');
+export const CLI = path.resolve(HERE, '..', 'plugins', 'specflow', 'scripts', 'specflow.mjs');
+export const HOOKS = path.resolve(HERE, '..', 'plugins', 'specflow', 'scripts', 'hooks');
 
 export function sh(cwd, cmd, args) {
   const r = spawnSync(cmd, args, { cwd, encoding: 'utf8' });
@@ -27,7 +27,7 @@ const write = (file, text) => { fs.mkdirSync(path.dirname(file), { recursive: tr
 
 /** Builds a temp workspace: root CLAUDE.md + backend/ and frontend/ git repos. */
 export function makeFixture() {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'sdlc-fx-'));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'specflow-fx-'));
   write(path.join(root, 'CLAUDE.md'), '# My product\n\nUser content that must survive.\n');
   const be = path.join(root, 'backend');
   write(path.join(be, 'package.json'), JSON.stringify({ name: 'be', scripts: { test: 'node -e "process.exit(0)"' }, dependencies: { express: '4' } }));
@@ -49,7 +49,7 @@ export function cli(root, ...args) {
 }
 
 export function cliEnv(root, env, ...args) {
-  const r = spawnSync(process.execPath, [CLI, ...args], { cwd: root, encoding: 'utf8', env: { ...process.env, SDLC_SKIP_TOOL_PROBE: '1', ...env } });
+  const r = spawnSync(process.execPath, [CLI, ...args], { cwd: root, encoding: 'utf8', env: { ...process.env, SPECFLOW_SKIP_TOOL_PROBE: '1', ...env } });
   return { code: r.status, out: r.stdout, err: r.stderr };
 }
 

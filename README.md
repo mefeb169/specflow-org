@@ -1,4 +1,4 @@
-# specflow-org
+# specflow
 
 **An AI software organization for Claude Code.** Open Claude Code at your product root, say *"Let's work on the next feature,"* and a team of role skills takes the feature from request to verified delivery: product, UX, architecture, build and verification, across as many Git repositories as the product has, driven by [GitHub Spec Kit](https://github.com/github/spec-kit).
 
@@ -20,20 +20,20 @@ Requirements: Claude Code, Node.js >= 18, git, and the Spec Kit CLI (`specify`).
 
 ```
 cd my-product                      # the folder that contains your repos
-claude plugin marketplace add mefeb169/specflow-org --scope project
-claude plugin install specflow-org@specflow-org-marketplace --scope project
+claude plugin marketplace add mefeb169/specflow --scope project
+claude plugin install specflow@specflow-marketplace --scope project
 claude
 > set up the framework here
 > let's work on the next feature
 ```
 
-Full documentation: [plugin README](plugins/specflow-org/README.md) · [runtime notes and what was verified](docs/runtime.md) · [architecture](docs/architecture.md) · [end-to-end run report](docs/e2e-report.md) · [security](SECURITY.md) · [changelog](CHANGELOG.md).
+Full documentation: [plugin README](plugins/specflow/README.md) · [runtime notes and what was verified](docs/runtime.md) · [architecture](docs/architecture.md) · [end-to-end run report](docs/e2e-report.md) · [security](SECURITY.md) · [changelog](CHANGELOG.md).
 
 ## Status
 Public beta (0.3.0). Tested on Windows with Spec Kit 1.2.0; the CI matrix covers Ubuntu, macOS and Windows on Node 18 and 22 but has not run yet. Known gaps are listed in the plugin README.
 
 ## Development
-`npm test` runs the node test suite (no dependencies). `claude plugin validate .` checks the manifests. Behavioral evals: [plugins/specflow-org/evals](plugins/specflow-org/evals/README.md). Planning history is in [tasks/](tasks/).
+`npm test` runs the node test suite (no dependencies). `claude plugin validate .` checks the manifests. Behavioral evals: [plugins/specflow/evals](plugins/specflow/evals/README.md). Planning history is in [tasks/](tasks/).
 
 ## License
-MIT, see [LICENSE](LICENSE). The bundled `frontend-design` skill is Anthropic's, under Apache-2.0 (see the plugin's [NOTICE](plugins/specflow-org/NOTICE)).
+MIT, see [LICENSE](LICENSE). The bundled `frontend-design` skill is Anthropic's, under Apache-2.0 (see the plugin's [NOTICE](plugins/specflow/NOTICE)).
