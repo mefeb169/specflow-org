@@ -2,6 +2,8 @@
 import { UserError, currentMilestone, getFeature, handoffRel, logHistory } from '../lib/state.mjs';
 import { currentBranch, isDirty } from '../lib/git.mjs';
 import { repoDir } from '../lib/state.mjs';
+import { refreshHandoff, writeHandoff } from '../lib/handoff.mjs';
+import { now } from '../lib/state.mjs';
 import { emit, need } from './io.mjs';
 import { newIssue } from './work.mjs';
 
@@ -42,7 +44,7 @@ export function conflictsFor(ctx, selfId, repos) {
   return out;
 }
 
-export function cmdInterrupt(args, ctx, hooks = {}) {
+export function cmdInterrupt(args, ctx) {
   const text = need(args._[0], 'usage: interrupt "<text>" [--kind bug|chore] [--repos a,b]');
   const bl = ctx.backlog;
   const kind = args.flags.kind || 'bug';
@@ -50,13 +52,14 @@ export function cmdInterrupt(args, ctx, hooks = {}) {
   const prev = bl.focus ? getFeature(ctx, bl.focus) : null;
   const item = newIssue(ctx, text, { ...args.flags, kind, from: prev ? prev.id : args.flags.from }, { priority: 'P0', tags: ['urgent'] });
   if (prev) {
-    if (hooks.beforePark) hooks.beforePark(prev);
+    prev.checkpoint = { at: now(), note: prev.checkpoint?.note || `parked for interrupt ${item.id}`, next: prev.checkpoint?.next || '' };
     if (!bl.parked.includes(prev.id)) bl.parked.push(prev.id);
     logHistory(prev, 'link', `parked for interrupt ${item.id}`);
   }
   bl.focus = item.id;
   logHistory(item, 'link', 'interrupt: focused');
   ctx.saveBacklog();
+  if (prev) refreshHandoff(ctx, prev);
   const conflicts = conflictsFor(ctx, item.id, item.repos);
   emit({ id: item.id, parked: prev ? prev.id : null, conflicts }, () => [
     `${item.id} created (P0, urgent) and focused.${prev ? ` ${prev.id} parked; resume it with \`specflow resume\`.` : ''}`,
@@ -76,6 +79,16 @@ export function cmdResume(args, ctx) {
   ctx.saveBacklog();
   const handoff = handoffRel(ctx, f);
   emit({ resumed: id, handoff, next: f.checkpoint?.next || null }, `Resumed ${line(f)}\nHandoff: ${handoff}\nNext: ${f.checkpoint?.next || '(no checkpoint next recorded)'}`);
+}
+
+export function cmdCheckpoint(args, ctx) {
+  const f = getFeature(ctx, need(args._[0], 'usage: checkpoint <id> [--note s] [--next s]'));
+  const flag = (k, prev) => (typeof args.flags[k] === 'string' ? args.flags[k] : prev || '');
+  f.checkpoint = { at: now(), note: flag('note', f.checkpoint?.note), next: flag('next', f.checkpoint?.next) };
+  logHistory(f, 'link', 'checkpoint');
+  ctx.saveBacklog();
+  const file = writeHandoff(ctx, f);
+  emit({ id: f.id, handoff: file, checkpoint: f.checkpoint }, `${f.id}: checkpoint saved; handoff at ${file}`);
 }
 
 export function cmdMilestone(args, ctx) {

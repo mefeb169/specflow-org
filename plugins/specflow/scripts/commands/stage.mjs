@@ -3,6 +3,7 @@ import { UserError, childrenOf, getFeature, slicingCfg, getRepo, logHistory, now
 import { GATES, GATE_STAGE, STAGES, stageIdx } from '../lib/lifecycle.mjs';
 import { checkEntry, checkTasks, clearDownstreamGates, requiredGates, sizeCounts, traits } from '../lib/gates.mjs';
 import { branchExists, isDirty, isGitRepo, switchBranch } from '../lib/git.mjs';
+import { refreshHandoff } from '../lib/handoff.mjs';
 import { io, emit, need } from './io.mjs';
 
 export function cmdStage(args, ctx) {
@@ -20,6 +21,7 @@ export function cmdStage(args, ctx) {
     logHistory(f, 'stage', `${f.stage} -> ${target} (revisit: ${reason}); cleared gates: ${cleared.join(', ') || 'none'}`);
     f.stage = target;
     ctx.saveBacklog();
+    refreshHandoff(ctx, f);
     return emit({ id, stage: target, cleared_gates: cleared }, `${id} moved back to ${target}; cleared gates: ${cleared.join(', ') || 'none'}`);
   }
   const kids = childrenOf(ctx, f.id);
@@ -30,6 +32,7 @@ export function cmdStage(args, ctx) {
       logHistory(f, 'stage', `${f.stage} -> done (all ${kids.length} slice(s) done; one-step rule waived for containers)`);
       f.stage = 'done'; f.revisit = null;
       ctx.saveBacklog();
+      refreshHandoff(ctx, f);
       return emit({ id, stage: 'done' }, `${id} is now done (all slices done)`);
     }
     if (tgt > stageIdx('planned')) throw new UserError(`${id} is a container; work happens in its slices: ${kids.map((k) => `${k.id} [${k.stage}]`).join(', ')}`);
@@ -45,6 +48,7 @@ export function cmdStage(args, ctx) {
   logHistory(f, 'stage', `${f.stage} -> ${target}${reason ? ` (${reason})` : ''}`);
   f.stage = target; f.revisit = null;
   ctx.saveBacklog();
+  refreshHandoff(ctx, f);
   emit({ id, stage: target }, `${id} is now ${target}`);
 }
 
@@ -61,6 +65,7 @@ export function cmdGate(args, ctx) {
   f.gates[gate] = { approved_at: now(), by: 'human', note: typeof args.flags.note === 'string' ? args.flags.note : '' };
   logHistory(f, 'gate', `${gate} approved`);
   ctx.saveBacklog();
+  refreshHandoff(ctx, f);
   emit({ id, gate, approved: true }, `${id}: gate "${gate}" approved`);
 }
 

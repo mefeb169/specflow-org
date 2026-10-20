@@ -11,7 +11,7 @@ import { cmdBranches, cmdCheck, cmdGate, cmdStage } from './commands/stage.mjs';
 import { cmdEvidence, cmdVerify } from './commands/verify.mjs';
 import { cmdNext, cmdStatus, cmdValidate } from './commands/views.mjs';
 import { cmdIntake, cmdIssue, cmdQuestion, cmdSlice } from './commands/work.mjs';
-import { cmdFocus, cmdInterrupt, cmdMilestone, cmdResume } from './commands/flow.mjs';
+import { cmdCheckpoint, cmdFocus, cmdInterrupt, cmdMilestone, cmdResume } from './commands/flow.mjs';
 import { cmdUpgrade } from './commands/upgrade.mjs';
 import { cmdInstall, cmdUninstall } from './commands/install.mjs';
 
@@ -52,7 +52,7 @@ function main() {
     scan: cmdScan,
     doctor: (a, c) => { const d = doctor(c); emit(d, renderDoctor(d)); if (d.some((x) => !x.ok && x.name === 'state validation')) process.exitCode = 1; },
     repo: cmdRepo, feature: cmdFeature, dep: cmdDep, blocker: cmdBlocker, stage: cmdStage, gate: cmdGate, check: cmdCheck,
-    branches: cmdBranches, verify: cmdVerify, evidence: cmdEvidence, status: cmdStatus, next: cmdNext, validate: cmdValidate, upgrade: cmdUpgrade, slice: cmdSlice, issue: cmdIssue, question: cmdQuestion, intake: cmdIntake, focus: cmdFocus, interrupt: cmdInterrupt, resume: cmdResume, milestone: cmdMilestone,
+    branches: cmdBranches, verify: cmdVerify, evidence: cmdEvidence, status: cmdStatus, next: cmdNext, validate: cmdValidate, upgrade: cmdUpgrade, slice: cmdSlice, issue: cmdIssue, question: cmdQuestion, intake: cmdIntake, checkpoint: cmdCheckpoint, focus: cmdFocus, interrupt: cmdInterrupt, resume: cmdResume, milestone: cmdMilestone,
   };
   const fn = commands[cmd];
   if (!fn) throw new UserError(`Unknown command "${cmd}". Run \`specflow help\`.`);
