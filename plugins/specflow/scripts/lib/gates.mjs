@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { AUTONOMY_GATES, DEP_MIN_STAGE, GATES, GATE_BEFORE, GATE_STAGE, STAGES, UX_SECTIONS, stageIdx } from './lifecycle.mjs';
-import { isUi, repoDir, specDirAbs, uxConfig } from './state.mjs';
+import { isUi, liteGates, repoDir, specDirAbs, uxConfig } from './state.mjs';
 import { headSha, isGitRepo } from './git.mjs';
 import { latestEvidence, readEvidence } from './verify.mjs';
 
@@ -66,8 +66,10 @@ export function uxCheck(ctx, f) {
 export function requiredGates(ctx, f) {
   const level = ctx.config.autonomy || 'standard';
   const base = AUTONOMY_GATES[level] || AUTONOMY_GATES.standard;
+  const lite = f.lane === 'lite' ? liteGates(ctx) : null;
   return GATES.filter((g) => {
     if (!base.includes(g)) return false;
+    if (lite && !lite.includes(g)) return false;
     if (g === 'design' && level === 'standard') {
       const t = traits(ctx, f);
       return t.multiRepo || t.migration || (t.ui && uxConfig(ctx).design_gate_for_ui);
@@ -119,8 +121,11 @@ export function checkEntry(ctx, f, target) {
     }
     case 'designed': {
       const plan = readIf(dir && path.join(dir, 'plan.md'));
-      need(plan !== null, 'plan.md does not exist');
-      uxCheck(ctx, f).forEach((m) => fail.push(m));
+      // The lite lane needs neither plan.md nor ux.md here; a plan that exists still gets its Repository Impact check.
+      if (f.lane !== 'lite') {
+        need(plan !== null, 'plan.md does not exist');
+        uxCheck(ctx, f).forEach((m) => fail.push(m));
+      }
       if (plan !== null && f.repos.length > 1) need(/^##\s+Repository Impact/im.test(plan), 'plan.md lacks a "## Repository Impact" section (required when repos > 1)');
       break;
     }

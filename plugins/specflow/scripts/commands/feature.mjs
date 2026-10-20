@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { UserError, getFeature, normalizeFeature, getRepo, logHistory, now, posix, repoDir } from '../lib/state.mjs';
-import { BLOCKER_KINDS, DEP_TYPES, GATES, PRIORITIES, RISKS } from '../lib/lifecycle.mjs';
+import { BLOCKER_KINDS, DEP_TYPES, GATES, LANES, PRIORITIES, RISKS, stageIdx } from '../lib/lifecycle.mjs';
 import { emit, need, csv, checkRepos } from './io.mjs';
 
 export function cmdRepo(args, ctx) {
@@ -55,8 +55,12 @@ export function cmdFeature(args, ctx) {
       case 'mvp': feat.mvp = value === 'true'; break;
       case 'ui': if (!['true', 'false'].includes(value)) throw new UserError('ui must be true or false'); feat.ui = value === 'true'; break;
       case 'repos': feat.repos = checkRepos(ctx, csv(value)); break;
+      case 'lane':
+        if (!LANES.includes(value)) throw new UserError(`lane must be one of ${LANES.join(', ')}`);
+        if (stageIdx(feat.stage) >= stageIdx('implementing')) throw new UserError(`lane can only change before implementing; ${feat.id} is at ${feat.stage}`);
+        feat.lane = value; break;
       case 'stage': case 'gates': throw new UserError('stage and gates cannot be set here; use `stage set` / `gate approve`');
-      default: throw new UserError('settable fields: title, summary, priority, mvp, value, risk, repos, ui');
+      default: throw new UserError('settable fields: title, summary, priority, mvp, value, risk, repos, ui, lane');
     }
     logHistory(feat, 'link', `set ${field}`);
     ctx.saveBacklog();

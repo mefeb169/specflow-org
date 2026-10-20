@@ -121,3 +121,42 @@ test('P1-5. upgrade: v1 dry run lists changes, --apply is additive and leaves va
   assert.ok(a);
   fx.cleanup();
 });
+
+const specDir = (root, name = '001-x') => path.join(root, 'specs', name);
+function linkSpec(root, id, files = {}, name = '001-x') {
+  const dir = specDir(root, name);
+  for (const [f, text] of Object.entries(files)) w(path.join(dir, f), text);
+  fs.mkdirSync(dir, { recursive: true });
+  ok(cli(root, 'feature', 'link', id, dir));
+  return dir;
+}
+
+test('P1-6. lite lane: only configured gates, no plan.md or ux.md needed to reach designed', () => {
+  const fx = setup();
+  const id = add(fx.root, 'Small fix', '--ui', 'true');
+  assert.deepEqual(j(fx.root, 'gate', 'required', id).required, ['spec', 'design', 'implement', 'acceptance', 'release']);
+  ok(cli(fx.root, 'feature', 'set', id, 'lane', 'lite'));
+  assert.deepEqual(j(fx.root, 'gate', 'required', id).required, ['acceptance', 'release']);
+  linkSpec(fx.root, id, { 'spec.md': '# short spec\n', 'tasks.md': '- [ ] T1 [repo:backend] fix\n' });
+  ok(cli(fx.root, 'stage', 'set', id, 'defined'));
+  ok(cli(fx.root, 'stage', 'set', id, 'specified'));
+  ok(cli(fx.root, 'stage', 'set', id, 'designed'));
+  ok(cli(fx.root, 'stage', 'set', id, 'planned'));
+  ok(cli(fx.root, 'branches', 'create', id));
+  ok(cli(fx.root, 'stage', 'set', id, 'implementing'));
+  assert.match(cli(fx.root, 'feature', 'set', id, 'lane', 'full').err, /before implementing/);
+  fx.cleanup();
+});
+
+test('P1-7. lite lane still demands Repository Impact when a plan exists and repos > 1; spec.md is always needed', () => {
+  const fx = setup();
+  const id = ok(cli(fx.root, 'feature', 'add', '--title', 'Two repos', '--summary', 's', '--value', 'v', '--repos', 'backend,frontend')).out.trim();
+  ok(cli(fx.root, 'feature', 'set', id, 'lane', 'lite'));
+  linkSpec(fx.root, id, { 'plan.md': '# plan only\n' });
+  ok(cli(fx.root, 'stage', 'set', id, 'defined'));
+  assert.match(cli(fx.root, 'stage', 'set', id, 'specified').err, /spec\.md does not exist/);
+  w(path.join(specDir(fx.root), 'spec.md'), '# s\n');
+  ok(cli(fx.root, 'stage', 'set', id, 'specified'));
+  assert.match(cli(fx.root, 'stage', 'set', id, 'designed').err, /Repository Impact/);
+  fx.cleanup();
+});
