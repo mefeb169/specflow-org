@@ -4,7 +4,7 @@ import { STAGES, STAGE_ROLE, stageIdx } from './lifecycle.mjs';
 import { depsStatus, openBlockers, requiredGates, checkTasks, uxCheck } from './gates.mjs';
 import { currentBranch, headSha } from './git.mjs';
 import { latestEvidence, readEvidence } from './verify.mjs';
-import { childrenOf, isLegacy, isUi, paths, readJson, repoDir, specDirAbs } from './state.mjs';
+import { childrenOf, currentMilestone, inMilestoneScope, isLegacy, isUi, paths, readJson, repoDir, specDirAbs } from './state.mjs';
 import { workspaceStale } from './runtime.mjs';
 
 const PRIO = { P0: 0, P1: 1, P2: 2, P3: 3 };
@@ -22,12 +22,13 @@ export function nextAction(ctx, f) {
   return `${base.action} [${base.role || '-'}]`;
 }
 
-export function ranking(ctx) {
+export function ranking(ctx, { all = false } = {}) {
   const ready = [];
   const notReady = [];
   const acceptedIdx = stageIdx('accepted');
   for (const f of ctx.backlog.features) {
     if (stageIdx(f.stage) >= acceptedIdx || f.dropped) continue;
+    if (!all && !inMilestoneScope(ctx, f)) continue;
     const holding = depsStatus(ctx, f);
     const blockers = openBlockers(f).map((b) => `${b.id} (${b.kind}): ${b.text}`);
     if (holding.length || blockers.length) { notReady.push({ id: f.id, title: f.title, held_by: [...holding, ...blockers] }); continue; }
@@ -49,11 +50,12 @@ export function ranking(ctx) {
   return {
     ready: ready.map(({ f, reasons }) => ({ id: f.id, title: f.title, stage: f.stage, priority: f.priority, mvp: f.mvp, repos: f.repos, reasons, next_action: nextAction(ctx, f) })),
     not_ready: notReady,
+    filter: !all && currentMilestone(ctx) ? `milestone ${currentMilestone(ctx)} (plus urgent and bug items)` : 'none',
   };
 }
 
 export function statusRow(ctx, f) {
-  return { id: f.id, title: f.title, stage: f.stage, blocked: openBlockers(f).length > 0 || depsStatus(ctx, f).length > 0, priority: f.priority, repos: f.repos, next: nextAction(ctx, f) };
+  return { id: f.id, kind: f.kind, title: f.title, stage: f.stage, blocked: openBlockers(f).length > 0 || depsStatus(ctx, f).length > 0, priority: f.priority, repos: f.repos, next: nextAction(ctx, f) };
 }
 
 /** Design-system evidence the last scan found in this feature's UI repos (deterministic input for specflow:ux's mode choice). */

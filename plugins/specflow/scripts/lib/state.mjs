@@ -90,6 +90,12 @@ export const slicingCfg = (ctx) => ({ ...SLICING_DEFAULTS, ...(ctx.config.slicin
 export const liteGates = (ctx) => ctx.config.lanes?.lite?.gates || LITE_GATES_DEFAULT;
 export const currentMilestone = (ctx) => ctx.config.current_milestone || null;
 
+/** Milestone filter for next/status: items in the current milestone, plus urgent-tagged and bug items. No milestone set = everything. */
+export function inMilestoneScope(ctx, f) {
+  const m = currentMilestone(ctx);
+  return !m || f.milestone === m || f.tags.includes('urgent') || f.kind === 'bug';
+}
+
 export function load(root) {
   const p = paths(root);
   const ctx = {
@@ -120,6 +126,9 @@ export function getFeature(ctx, id) {
 /** Non-dropped slices of a feature. A feature with any is a container: work happens in its slices. */
 export const childrenOf = (ctx, id) => ctx.backlog.features.filter((x) => x.parent === id && !x.dropped);
 export const isContainer = (ctx, f) => childrenOf(ctx, f.id).length > 0;
+
+/** Where a work item's handoff file lives: next to its spec, or under .specflow/handoff/. */
+export const handoffRel = (ctx, f) => (f.spec_dir ? `${f.spec_dir}/handoff.md` : `${stateDirName(ctx.root)}/handoff/${f.id}.md`);
 
 export function getRepo(ctx, name) {
   const r = ctx.config.repos.find((x) => x.name === name);

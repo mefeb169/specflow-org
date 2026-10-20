@@ -1,4 +1,4 @@
-import { getFeature } from '../lib/state.mjs';
+import { getFeature, inMilestoneScope } from '../lib/state.mjs';
 import { featureDetail, ranking, statusRow, table } from '../lib/render.mjs';
 import { validate } from '../lib/validate.mjs';
 import { emit } from './io.mjs';
@@ -22,13 +22,16 @@ export function cmdStatus(args, ctx) {
       `next: ${d.next}`,
     ].filter(Boolean).join('\n'));
   }
-  const rows = ctx.backlog.features.map((f) => statusRow(ctx, f));
-  emit(rows, () => (rows.length ? table(rows.map((r) => ({ ...r, blocked: r.blocked ? 'yes' : '' })), ['id', 'title', 'stage', 'priority', 'blocked', 'next']) : 'Backlog is empty.'));
+  const all = !!args.flags.all;
+  const rows = ctx.backlog.features.filter((f) => all || (f.stage !== 'done' && !f.dropped && inMilestoneScope(ctx, f))).map((f) => statusRow(ctx, f));
+  const cut = (s, n) => (s.length > n ? `${s.slice(0, n - 3)}...` : s);
+  emit(rows, () => (rows.length ? table(rows.map((r) => ({ ...r, title: cut(r.title, 40), next: cut(r.next, 60), blocked: r.blocked ? 'yes' : '' })), ['id', 'kind', 'title', 'stage', 'priority', 'blocked', 'next']) : ctx.backlog.features.length ? 'Nothing active (done, dropped and out-of-milestone items are hidden; --all shows them).' : 'Backlog is empty.'));
 }
 
 export function cmdNext(args, ctx) {
-  const r = ranking(ctx);
+  const r = ranking(ctx, { all: !!args.flags.all });
   emit(r, () => [
+    `Filter: ${r.filter}${r.filter === 'none' ? '' : ' (--all disables)'}`,
     r.ready.length ? 'Ready (best first):' : 'No ready features.',
     ...r.ready.map((x, i) => `${i + 1}. ${x.id} ${x.title} [${x.stage}]: ${x.reasons.join('; ')}\n   next: ${x.next_action}`),
     r.not_ready.length ? 'Not ready:' : '',

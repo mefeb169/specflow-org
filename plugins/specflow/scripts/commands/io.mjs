@@ -1,6 +1,6 @@
 import { UserError, getRepo } from '../lib/state.mjs';
 
-const BOOL = new Set(['json', 'mvp', 'confirm', 'root-is-repo', 'help', 'apply', 'version', 'remove-marketplace', 'fix-legacy']);
+const BOOL = new Set(['json', 'mvp', 'confirm', 'root-is-repo', 'help', 'apply', 'version', 'remove-marketplace', 'fix-legacy', 'clear', 'all', 'open']);
 
 export function parseArgs(argv) {
   const a = { _: [], flags: {} };

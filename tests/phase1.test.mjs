@@ -280,3 +280,57 @@ test('P1-13. intake turns a task file into one item and refuses a second import'
   assert.equal(j(fx.root, 'intake', 'notes.md', '--title', 'Custom').title, 'Custom');
   fx.cleanup();
 });
+
+const patchBacklog = (root, fn) => { const b = readBacklog(root); fn(b); fs.writeFileSync(bl(root), JSON.stringify(b)); };
+
+test('P1-14. focus, interrupt, resume; interrupt reports conflicts and never switches branches', () => {
+  const fx = setup();
+  const a = add(fx.root, 'Active feature');
+  patchBacklog(fx.root, (b) => { const f = b.features[0]; f.stage = 'implementing'; f.branches = { backend: 'feat-a' }; });
+  assert.equal(j(fx.root, 'focus').focus, null);
+  ok(cli(fx.root, 'focus', a));
+  assert.equal(j(fx.root, 'focus').focus, a);
+  w(path.join(fx.be, 'dirty.txt'), 'x');
+  const before = sh(fx.be, 'git', ['rev-parse', '--abbrev-ref', 'HEAD']);
+  const r = j(fx.root, 'interrupt', 'Prod login is broken', '--repos', 'backend');
+  assert.equal(r.parked, a);
+  assert.equal(r.conflicts.length, 1);
+  assert.deepEqual([r.conflicts[0].id, r.conflicts[0].repo, r.conflicts[0].branch, r.conflicts[0].dirty], [a, 'backend', 'feat-a', true]);
+  assert.equal(sh(fx.be, 'git', ['rev-parse', '--abbrev-ref', 'HEAD']), before, 'branch untouched');
+  const b = readBacklog(fx.root);
+  const urgent = b.features.find((x) => x.id === r.id);
+  assert.deepEqual([b.focus, b.parked, urgent.priority, urgent.tags, urgent.origin.from], [r.id, [a], 'P0', ['urgent'], a]);
+  const res = j(fx.root, 'resume');
+  assert.equal(res.resumed, a);
+  assert.equal(readBacklog(fx.root).focus, a);
+  assert.equal(j(fx.root, 'resume').resumed, null);
+  assert.match(cli(fx.root, 'focus', r.id, '--clear').out, /cleared/i);
+  ok(cli(fx.root, 'feature', 'drop', r.id, '--reason', 'fixed elsewhere'));
+  assert.match(cli(fx.root, 'focus', r.id).err, /dropped/);
+  fx.cleanup();
+});
+
+test('P1-15. milestone filters next and status; --all and urgent/bug items bypass it', () => {
+  const fx = setup();
+  const a = add(fx.root, 'In milestone');
+  const b = add(fx.root, 'Elsewhere');
+  const c = ok(cli(fx.root, 'issue', 'add', 'a bug', '--kind', 'bug')).out.trim();
+  ok(cli(fx.root, 'feature', 'set', a, 'milestone', 'm1'));
+  ok(cli(fx.root, 'feature', 'set', b, 'milestone', 'm2'));
+  ok(cli(fx.root, 'feature', 'set', b, 'tags', 'area:x,phase:2'));
+  assert.equal(j(fx.root, 'next').ready.length, 3, 'no milestone: everything');
+  ok(cli(fx.root, 'milestone', 'set', 'm1'));
+  const ids = (r) => r.ready.map((x) => x.id).sort();
+  assert.deepEqual(ids(j(fx.root, 'next')), [a, c].sort());
+  assert.match(cli(fx.root, 'next').out, /Filter: milestone m1/);
+  assert.equal(ids(j(fx.root, 'next', '--all')).length, 3);
+  assert.deepEqual(j(fx.root, 'status').map((r) => r.id).sort(), [a, c].sort());
+  assert.equal(j(fx.root, 'status', '--all').length, 3);
+  assert.match(cli(fx.root, 'status').out, /kind/);
+  ok(cli(fx.root, 'milestone', 'clear'));
+  assert.equal(j(fx.root, 'next').ready.length, 3);
+  ok(cli(fx.root, 'feature', 'drop', b, '--reason', 'no'));
+  assert.equal(j(fx.root, 'status').length, 2, 'dropped hidden by default');
+  assert.equal(j(fx.root, 'status', '--all').length, 3);
+  fx.cleanup();
+});
