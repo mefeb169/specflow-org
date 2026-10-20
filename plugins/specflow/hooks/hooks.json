@@ -17,6 +17,13 @@
         ]
       }
     ],
+    "PreCompact": [
+      {
+        "hooks": [
+          { "type": "command", "command": "node", "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/hooks/pre-compact.mjs"], "timeout": 30 }
+        ]
+      }
+    ],
     "Stop": [
       {
         "hooks": [

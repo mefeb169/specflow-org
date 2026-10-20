@@ -58,3 +58,6 @@ Restyle an existing product in conform mode. Edit `spec.md` or acceptance criter
 
 ## Escalate when
 The spec leaves user-visible behavior undefined; the existing design system contradicts the spec; the user's request would break an established design system (ask whether this is a redesign); accessibility needs conflict with a stated requirement.
+
+## When dispatched as a subagent
+A dispatch prompt starting `specflow dispatch: role <r>` means you run as the `specflow:ux` agent. Its definition (`${CLAUDE_PLUGIN_ROOT}/agents/ux.md`) holds the subagent contract: no contact with the user, questions through `specflow question add`, no gate approval, a checkpoint before returning, a report of at most 15 lines. Where a step above asks the user something, record a question instead and return it to the PM.

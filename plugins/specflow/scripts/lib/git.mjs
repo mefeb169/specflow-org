@@ -34,3 +34,13 @@ export function switchBranch(dir, name) {
   if (branchExists(dir, name)) return git(dir, ['switch', name]);
   return git(dir, ['switch', '-c', name]);
 }
+
+export { git };
+
+export const remoteUrl = (dir, name = 'origin') => { const r = git(dir, ['remote', 'get-url', name]); return r.ok ? r.out : null; };
+
+/** The remote's default branch as origin/HEAD records it (null when unknown). */
+export function defaultBranch(dir) {
+  const r = git(dir, ['symbolic-ref', '--short', 'refs/remotes/origin/HEAD']);
+  return r.ok ? r.out.replace(/^origin\//, '') : null;
+}

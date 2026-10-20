@@ -11,6 +11,27 @@ const MARKERS = [['<!-- specflow:begin -->', '<!-- specflow:end -->'], ['<!-- sd
 const STATE_DIRS = ['.specflow', '.sdlc'];
 const NON_SOURCE = ['specs', ...STATE_DIRS, '.specify', '.claude'];
 
+// Actions only the PM (main session) may take. Hook input carries agent_id when the call comes from inside a subagent.
+// `deliver status` and `deliver ... --dry-run` only read, so they are not guarded. The dry-run exemption is judged per
+// shell segment with comments removed, so `deliver F-1 # --dry-run` or `deliver F-1; echo --dry-run` is still guarded.
+const DELIVER_CALL = /(?:specflow|sflow|sdlc)(?:\.mjs)?["']?\s+deliver\b(?!\s+status\b)/i;
+const DELIVER = {
+  test: (cmd) => cmd.split(/[;&|\n]/).some((seg) => {
+    const code = seg.replace(/(^|\s)#.*$/, '');
+    return DELIVER_CALL.test(code) && !/(^|\s)--dry-run\b/.test(code);
+  }),
+};
+const RELEASE = /(?:specflow|sflow|sdlc)(?:\.mjs)?["']?\s+release\s+(run|verify)\b/i;
+const PM_ONLY = [
+  DELIVER,
+  RELEASE,
+  /(?:specflow|sflow|sdlc)(?:\.mjs)?["']?\s+(?:gate\s+approve|init|upgrade\s+--apply|install|uninstall)\b/i,
+  /\bspecify\s+init\b/i,
+  /\bgit\s+(?:-C\s+\S+\s+)?push\b/i,
+  /\bgh\s+pr\s+(?:create|merge)\b/i,
+];
+const PM_ONLY_REASON = 'Only the specflow PM (main session) may do this; return it to the PM in your report.';
+
 const deny = (reason) => ({ decision: 'deny', reason });
 const ask = (reason) => ({ decision: 'ask', reason });
 // Permission modes in which a hook-forced "ask" may never reach a human.
@@ -56,14 +77,28 @@ export function decide({ root, config, backlog, input, cwd }) {
   if (tool === 'Bash') {
     const cmd = stripCatHeredocBodies(String(ti.command || ''));
     // The CLI is invoked as specflow, sflow, specflow.mjs, or (legacy) sdlc / sdlc.mjs.
+    if (input.agent_id && PM_ONLY.some((re) => re.test(cmd))) return deny(PM_ONLY_REASON);
     const g = cmd.match(/(?:specflow|sflow|sdlc)(?:\.mjs)?["']?\s+gate\s+approve\s+(\S+)\s+(\S+)/i);
     if (g || /(?:specflow|sflow|sdlc)(?:\.mjs)?["']?\s+gate\s+approve\b/i.test(cmd)) {
       return gate(g ? `Human approval of gate "${g[2]}" for ${g[1]}. Only approve if you reviewed the artifacts.` : 'Human approval of a lifecycle gate.');
     }
+    if (DELIVER.test(cmd)) {
+      const m = cmd.match(/deliver\s+(merge\s+)?(\S+)/i);
+      return gate(`${m && m[1] ? 'Merging' : 'Pushing branches and opening or updating'} pull requests for ${m ? m[2] : 'the item'} (specflow deliver). Outward-facing: confirm.`);
+    }
+    const rl = cmd.match(RELEASE);
+    if (rl) {
+      const verify = rl[1].toLowerCase() === 'verify';
+      const rc = config.release || {};
+      const one = cmd.match(/--step\s+(\S+)/);
+      const list = verify ? (rc.post_release || []) : (rc.steps || []).filter((s) => s.approval === 'none' && !['migrate', 'restart'].includes(s.kind));
+      const names = one ? [one[1]] : list.map((s) => s.name);
+      return gate(`Release ${verify ? 'post-release checks' : 'steps'} run commands against real systems: ${names.join(', ') || '(none configured)'}. Confirm.`);
+    }
     if (/(?:specflow|sflow|sdlc)(?:\.mjs)?["']?\s+(init|branches\s+create|upgrade\s+--apply|install|uninstall)\b/i.test(cmd) || /\bspecify\s+init\b/i.test(cmd)) {
       return gate('Framework/Spec Kit setup, install/uninstall or branch creation changes the workspace; please confirm.');
     }
-    if (/\.(specflow|sdlc).(backlog|config)\.json/i.test(cmd) && /(>|\btee\b|sed\s+-i|Set-Content|Out-File|Add-Content|writeFile|\brm\b|\bmv\b|\bcp\b|Remove-Item|Move-Item|Rename-Item)/i.test(cmd)) {
+    if (/\.(specflow|sdlc).(backlog|config|memory)\.json/i.test(cmd) && /(>|\btee\b|sed\s+-i|Set-Content|Out-File|Add-Content|writeFile|\brm\b|\bmv\b|\bcp\b|Remove-Item|Move-Item|Rename-Item)/i.test(cmd)) {
       return gate('Shell command appears to modify specflow state files directly. Use the specflow CLI instead.');
     }
     const patterns = [...(config.guards?.destructive_bash_patterns || DEFAULT_DESTRUCTIVE_PATTERNS), ...(config.guards?.extra_bash_patterns || [])];
@@ -83,7 +118,7 @@ export function decide({ root, config, backlog, input, cwd }) {
   if (!within(fileN, rootN)) return null;
 
   const rel = path.relative(root, file).split(path.sep).join('/');
-  if (STATE_DIRS.some((d) => rel === `${d}/backlog.json` || rel === `${d}/config.json`)) {
+  if (STATE_DIRS.some((d) => rel === `${d}/backlog.json` || rel === `${d}/config.json` || rel === `${d}/memory.json`)) {
     return deny('Lifecycle state is managed by the specflow CLI. Use `specflow` subcommands instead of editing this file.');
   }
   if (INSTRUCTION_FILES.test(file) && fs.existsSync(file)) {

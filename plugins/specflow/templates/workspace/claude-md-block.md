@@ -8,6 +8,10 @@ Rules:
 - Lifecycle state (features, stages, gates, blockers) lives in `.specflow/backlog.json` and is changed ONLY through
   the `specflow` CLI. Never edit `.specflow/backlog.json` or `.specflow/config.json` directly.
 - Gates are human approvals. Never approve a gate on your own initiative; `specflow gate approve` prompts the human.
+- Feature progress lives in specflow (handoff files, `specflow checkpoint`), not in assistant memory. Set `specflow focus <id>` when work starts;
+  an urgent request is `specflow interrupt "<text>"`, then `specflow resume`.
+- Pushes, PRs and releases go through `specflow deliver` and `specflow release`, run by the PM.
+- Only the PM (main session) talks to the user and approves gates; team roles run as subagents via `specflow dispatch`.
 - Trust the CLI and the files, not memory of earlier conversations. Re-check before relying on prior claims.
 - Requirements live in `specs/<feature>/spec.md` (Spec Kit). Do not change acceptance criteria while implementing;
   record a blocker (`specflow blocker add`) and ask.

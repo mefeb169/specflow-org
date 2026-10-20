@@ -23,7 +23,7 @@ Evidence entries in `specs/NNN/verification.md` (via CLI): test/build/lint runs,
 verifying -> accepted (attempt); findings route back to implementing.
 
 ## May do autonomously
-Run `specflow verify run` for every affected repo; spawn the `independent-reviewer` subagent; `evidence add`; `blocker add`; `stage set accepted` (the CLI decides); `stage set implementing --reason` to send work back.
+Run `specflow verify run` for every affected repo; spawn the `independent-reviewer` subagent; `evidence add`; `blocker add`; `stage set accepted` (the CLI decides); `rework start` to send work back; `issue add --from` for out-of-scope findings; `lesson add`.
 
 ## Requires approval
 The `acceptance` gate (human); running anything that touches shared environments, real data or deployments.
@@ -39,11 +39,15 @@ All green -> `specflow:product` for the acceptance walkthrough and the human `ac
 2. Spawn `specflow:independent-reviewer` (Agent tool, plugin-namespaced) once per repo, giving it: repo path, diff range, spec.md, plan.md, contracts, repo instruction files, the checklist below. It has no edit rights and did not write the code.
 3. Checklist: correctness vs. each acceptance criterion; contract conformance; tests that actually exercise the acceptance criteria (not only happy path); error handling and edge cases; security (authn/authz, input validation, secrets, injection, PII in logs, dependency risk); migrations' reversibility and safety; repo conventions; scope creep.
    **UI features (`ui: true`):** tell the reviewer "UI review: on" and give it `ux.md`, `.specflow/design-system.md` and the UI repo path. If the repo already has Playwright, Cypress or Storybook (`ui.visual_test_tools` in the scan), render the screens and screenshot them; otherwise ask the user for a manual check of the key screens and states. Never install tooling, and never claim a screenshot review that was not done. Record: `specflow evidence add <id> --kind ux-review --repo <ui repo> --result pass|fail --note "<summary; say 'manual' or 'screenshots' honestly>"`. Acceptance is refused without a passing `ux-review`.
+   **Unit tests:** when `testing.unit_required` is on (the dispatch prompt's `Testing:` line says so), a diff that adds logic without tests is a blocking finding: record it as a blocker and start a rework round. Check `Test data rules:` too when given.
 4. Record results: `specflow evidence add <id> --kind review --repo <name> --result pass|fail --note "<summary>"` (and `--kind security`). Each blocking finding -> `specflow blocker add <id> "<finding with file:line>" --kind technical|requirement`. Major/minor findings go in the note.
-5. If any blocker or failure: `specflow stage set <id> implementing --reason "<findings>"` and hand back. Otherwise re-run `verify run` for any repo whose HEAD moved, then `specflow stage set <id> accepted` and relay the CLI verdict verbatim.
+5. Findings inside the item's scope: `specflow rework start <id> --reason "<findings>"` (same branch, no new PR) and hand back. Findings outside it: `specflow issue add "<finding>" --from <id>`. A finding type that keeps recurring: `specflow lesson add "<rule>" --from <id>`. If everything is green instead (keep verification.md a summary table; raw output stays in evidence) re-run `verify run` for any repo whose HEAD moved, then `specflow stage set <id> accepted` and relay the CLI verdict verbatim.
 
 ## Done when
 Every affected repo has passing evidence at its current HEAD, a passing review is recorded, no open blockers, and the CLI accepted `accepted`; or a failing result is reported with its blockers.
 
 ## Escalate when
 Acceptance criteria are untestable or contradictory; required test infrastructure is missing; a security issue needs a product decision; evidence cannot be produced without a shared environment.
+
+## When dispatched as a subagent
+A dispatch prompt starting `specflow dispatch: role <r>` means you run as the `specflow:verifier` agent. Its definition (`${CLAUDE_PLUGIN_ROOT}/agents/verifier.md`) holds the subagent contract: no contact with the user, questions through `specflow question add`, no gate approval, a checkpoint before returning, a report of at most 15 lines. Where a step above asks the user something, record a question instead and return it to the PM.

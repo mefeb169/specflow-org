@@ -1,6 +1,6 @@
 {
   "name": "@mefeb169/specflow",
-  "version": "0.4.0",
+  "version": "0.7.0",
   "description": "specflow: a role-based AI software organization for Claude Code (plugin) and its specflow / sflow command-line tool",
   "type": "module",
   "private": true,

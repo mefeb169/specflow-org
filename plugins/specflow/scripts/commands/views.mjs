@@ -1,7 +1,9 @@
-import { getFeature } from '../lib/state.mjs';
+import { currentMilestone, getFeature, inMilestoneScope } from '../lib/state.mjs';
 import { featureDetail, ranking, statusRow, table } from '../lib/render.mjs';
 import { validate } from '../lib/validate.mjs';
 import { emit } from './io.mjs';
+
+const LEAN_LIMIT = 30;
 
 export function cmdStatus(args, ctx) {
   const id = args._[0];
@@ -11,22 +13,35 @@ export function cmdStatus(args, ctx) {
       `${d.id} ${d.title} [${d.stage}]${d.blocked ? ' BLOCKED' : ''}  priority ${d.priority}  repos: ${d.repos.join(', ')}`,
       `spec: ${d.spec_dir || '(none)'}   branches: ${JSON.stringify(d.branches)}`,
       `gates required: ${d.required_gates.join(', ') || '-'} | pending: ${d.pending_gates.join(', ') || '-'}`,
+      d.parent ? `slice of ${d.parent} | lane ${d.lane}` : d.lane === 'lite' ? `lane lite (${d.kind})` : '',
+      d.rework.total ? `rework: ${d.rework.open ? `round ${d.rework.open} open` : 'none open'}, ${d.rework.total} round(s) total` : '',
+      ...d.slices.map((s) => `slice ${s.id} [${s.stage}] ${s.title}`),
       d.ui ? `ui: yes | ux.md: ${d.ux.complete ? 'complete' : `incomplete (${d.ux.failures.length})`}` : '',
       ...Object.entries(d.ui_evidence).map(([r, u]) => `ui evidence ${r}: design system ${u.design_system.length ? u.design_system.join(', ') : 'NONE found'}; visual tools: ${u.visual_test_tools.join(', ') || 'none'}`),
       d.tasks ? `tasks: ${d.tasks.done}/${d.tasks.total}` : '',
       ...d.evidence.map((e) => `evidence ${e.repo}: ${e.last ? `${e.last.result} @${String(e.last.sha).slice(0, 8)} ${e.fresh ? '(fresh)' : '(STALE vs HEAD ' + String(e.head).slice(0, 8) + ')'}` : 'none'}`),
+      ...Object.entries(d.delivery).map(([r, x]) => `delivery ${r}: ${x.pr_url} (${x.pr_state})`),
       ...d.held_by.map((h) => `held by: ${h}`),
       ...d.blockers.filter((b) => b.open).map((b) => `blocker ${b.id} [${b.kind}]: ${b.text}`),
       `next: ${d.next}`,
     ].filter(Boolean).join('\n'));
   }
-  const rows = ctx.backlog.features.map((f) => statusRow(ctx, f));
-  emit(rows, () => (rows.length ? table(rows.map((r) => ({ ...r, blocked: r.blocked ? 'yes' : '' })), ['id', 'title', 'stage', 'priority', 'blocked', 'next']) : 'Backlog is empty.'));
+  const all = !!args.flags.all;
+  let rows = ctx.backlog.features.filter((f) => all || (f.stage !== 'done' && !f.dropped && inMilestoneScope(ctx, f))).map((f) => statusRow(ctx, f));
+  // A long list with no milestone to narrow it: show only the items that have started.
+  let hiddenProposed = 0;
+  if (!all && !currentMilestone(ctx) && rows.length > LEAN_LIMIT) {
+    hiddenProposed = rows.filter((r) => r.stage === 'proposed').length;
+    rows = rows.filter((r) => r.stage !== 'proposed');
+  }
+  const cut = (s, n) => (s.length > n ? `${s.slice(0, n - 3)}...` : s);
+  emit(rows, () => (rows.length || hiddenProposed ? [rows.length ? table(rows.map((r) => ({ ...r, title: cut(r.title, 40), next: cut(r.next, 60), blocked: r.blocked ? 'yes' : '' })), ['id', 'kind', 'title', 'stage', 'priority', 'blocked', 'next']) : '', hiddenProposed ? `... and ${hiddenProposed} proposed items (status --all, or set a milestone)` : ''].filter(Boolean).join('\n') : ctx.backlog.features.length ? 'Nothing active (done, dropped and out-of-milestone items are hidden; --all shows them).' : 'Backlog is empty.'));
 }
 
 export function cmdNext(args, ctx) {
-  const r = ranking(ctx);
+  const r = ranking(ctx, { all: !!args.flags.all });
   emit(r, () => [
+    `Filter: ${r.filter}${r.filter === 'none' ? '' : ' (--all disables)'}`,
     r.ready.length ? 'Ready (best first):' : 'No ready features.',
     ...r.ready.map((x, i) => `${i + 1}. ${x.id} ${x.title} [${x.stage}]: ${x.reasons.join('; ')}\n   next: ${x.next_action}`),
     r.not_ready.length ? 'Not ready:' : '',

@@ -47,6 +47,7 @@ Change acceptance criteria or business rules (raise `blocker add --kind requirem
 5. `specflow stage set <id> designed`. If `specflow gate required <id>` lists `design`, hand back for approval.
    For UI features, the plan implements `ux.md` as written (design-system components, screens, states); contradictions go to a blocker, not a silent redesign.
 6. After approval: run `speckit-tasks`. For UI features the tasks reference `ux.md` screens and include the empty, loading and error states and the accessibility items. Ensure EVERY task line carries `[repo:<registered name>]`; fix lines yourself. Run `specflow check tasks <id>` until clean. Run `speckit-analyze` (always for multi-repo features); fix issues in plan/tasks; if a finding needs a spec change, raise a requirement blocker instead. Record it: `specflow evidence add <id> --kind analyze --result pass|fail --note "..."`.
+6b. Size rule: `specflow check size <id>` (limit from `config.slicing`: 15 tasks, 1 migration). If the feature is too large, do not request a waiver on your own: propose slices (each releasable, with its own acceptance) in plan.md under `## Slices`, create them with `specflow slice add <id> --title ...`, and plan each slice in the lite lane. A `size_waiver` needs a reason the user approved.
 7. `specflow stage set <id> planned`.
 
 ## Done when
@@ -54,3 +55,6 @@ plan.md has contracts/data model as needed and Repository Impact (if multi-repo)
 
 ## Escalate when
 Spec is ambiguous or contradicts the constitution/existing behavior; two repos' conventions conflict; the design needs a risky migration or new infrastructure; a technology choice is required with no basis in the existing stack.
+
+## When dispatched as a subagent
+A dispatch prompt starting `specflow dispatch: role <r>` means you run as the `specflow:architect` agent. Its definition (`${CLAUDE_PLUGIN_ROOT}/agents/architect.md`) holds the subagent contract: no contact with the user, questions through `specflow question add`, no gate approval, a checkpoint before returning, a report of at most 15 lines. Where a step above asks the user something, record a question instead and return it to the PM.

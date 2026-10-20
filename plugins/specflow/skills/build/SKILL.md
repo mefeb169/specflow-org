@@ -43,7 +43,9 @@ When all tasks are `[X]` and every repo has a passing `verify run` at HEAD: `spe
    b2. UI repos (`ui: true`): read `specs/NNN/ux.md` and `.specflow/design-system.md`. In conform mode reuse the existing tokens/components and add no new colors, typefaces or radii. Use the exact copy strings from `ux.md`. Implement every listed screen state. Meet the quality floor: responsive down to mobile, visible keyboard focus, `prefers-reduced-motion` respected, accessible contrast. Keep CSS specificity simple so classes do not cancel each other. Load `specflow:frontend-design` only for direction-mode features, and follow the approved tokens.
    c. Add/adjust tests covering the acceptance criteria this repo is responsible for. Update repo docs when user- or integrator-visible behavior changes.
    d. Mark finished tasks `[X]` in tasks.md; commit locally on the feature branch (small, conventional messages).
+   d2. Code comments only where the reason is not obvious from the code (business rule, workaround, cross-repo contract), citing the spec id. No narrative comments.
    e. `specflow verify run <id> --repo <name>` (and `--kind build`/`lint` where confirmed). On failure: fix and re-run; report honestly if you cannot.
+3b. After each repo: `specflow checkpoint <id> --next "<what remains>"`. During a rework round (`specflow status <id>` shows it) fix on the same branch(es); do not push or open a new PR; re-run verify.
 4. When all repos are green and every task is `[X]`: `specflow check tasks <id>`, then `specflow stage set <id> verifying`.
 If a repo has no confirmed test command, do not invent one: tell the orchestrator (`specflow:discover` territory) and record manual evidence only with the user's help.
 
@@ -52,3 +54,6 @@ All tagged tasks `[X]`; per-repo verification passes at current HEAD; no new ope
 
 ## Escalate when
 Requirement conflict or missing information; a contract/plan error; failing tests you cannot fix within scope; need for credentials, shared infrastructure, or migrations on real data; branch/dirty-repo problems.
+
+## When dispatched as a subagent
+A dispatch prompt starting `specflow dispatch: role <r>` means you run as the `specflow:builder` agent (or `specflow:lead`). Its definition (`${CLAUDE_PLUGIN_ROOT}/agents/builder.md`) holds the subagent contract: no contact with the user, questions through `specflow question add`, no gate approval, a checkpoint before returning, a report of at most 15 lines. Where a step above asks the user something, record a question instead and return it to the PM.

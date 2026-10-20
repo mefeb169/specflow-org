@@ -121,6 +121,8 @@ The key "must not" rules:
 - verify never fixes code. It reports, and the orchestrator routes the finding back to build;
 - no role approves a gate.
 
+**Team model (0.6.0).** Every role runs as a plugin subagent (`agents/*.md`) with its own `model` and `tools`; `Agent` is granted only to `lead` (spawns builders) and `verifier` (spawns the independent reviewer), so nesting stays shallow. The main session is the PM: it alone talks to the user (subagents have no AskUserQuestion) and alone approves gates. `specflow dispatch <id>` is the deterministic bridge: it maps the stage (and ux.md state, lead coverage, disabled roles) to an agent, takes the model from `config.team` so the PM can override the agent file's default through the Agent tool's `model` parameter, and builds a short prompt. Roles communicate through files and the CLI (`question add`, `checkpoint`, handoff), not through the user. The PreToolUse hook sees `agent_id` for calls made inside a subagent and denies the PM-only actions (gates, init/install/upgrade, push, PR create/merge). The setup interview is data (`setup questions`), asked by the `specflow:setup` skill and recorded in the decision log.
+
 ## A6. Lifecycle state model
 
 Stages, in order (`backlog.json › features[].stage`):
@@ -146,6 +148,10 @@ Which gates are required comes from `config.autonomy`:
 - `autonomous`: `acceptance`, `release`.
 
 Destructive-command guards apply at every level.
+
+**Schema v2 (0.5.0).** Work items also carry `kind`, `lane`, `parent`, `milestone`, `tags`, `origin`, `rework`, `size_waiver`, `checkpoint` and `dropped`; the backlog carries `focus`, `parked` and the question list. A second state file, `.specflow/memory.json` (preferences, decisions, lessons), is protected like `backlog.json` and `config.json`. Items in the `lite` lane need only the gates in `config.lanes.lite.gates` and no plan.md or ux.md; a feature with slices is a container whose slices carry the work. Entry to `planned` enforces the size rule from `config.slicing`. `load()` fills missing fields in memory, so 0.4.0 files are never rewritten on read; `upgrade --apply` writes them.
+
+**Handoff.** `specflow checkpoint` renders `specs/<dir>/handoff.md` (or `.specflow/handoff/<id>.md`) from state, at most about 60 lines: next step, note, progress, repo branch/HEAD/verification freshness, open blockers and questions, recent decisions, artifact links. Stage changes, gate approvals, rework and interrupts regenerate it; the `PreCompact` hook and the `Stop` hook refresh the focus item's file. The brief points at it, so a new session resumes from the handoff instead of re-reading artifacts.
 
 **Resume:** the SessionStart hook runs `specflow brief`, which reports in-flight features, their stage, what is pending and any **staleness**: for example, a repo HEAD that differs from the SHA in the last verification, a missing branch, or `tasks.md` changed since the stage was set. The orchestrator re-checks files before trusting the recorded state. It never trusts claims from an earlier conversation.
 
@@ -183,6 +189,7 @@ Feature IDs: backlog IDs are `F-001`… and stay stable from the start. `spec_di
 | `specify init`, `specflow init`, `specflow branches create` | **ask** |
 | Source edits in a repo when no feature in that repo is `implementing` | `config.guards.source_edit_outside_implementing`: `ask` (default) / `deny` / `off` |
 | Destructive or outward-facing Bash (pattern list in config, see B5) | **ask** |
+| `specflow deliver` (push, PR create or update, merge), `specflow release run`, `specflow release verify` | **ask** in the main session; **denied** for subagents and unattended modes; `deliver status` and `deliver --dry-run` are free |
 | Failed verification | the stage cannot advance (CLI refuses); reported honestly |
 
 ## A9. Representative walkthrough: "Password reset via email" (frontend + backend)
@@ -213,3 +220,7 @@ Feature IDs: backlog IDs are `F-001`… and stay stable from the start. `spec_di
 
 ---
 
+
+## A12. Delivery and release pipelines (0.7.0)
+
+Two PM-only pipelines sit after `accepted`. **Delivery** (`specflow deliver`): from a verified state only (fresh passing evidence at HEAD, clean tree, the item's own branch, no open rework round or blocker), plain `git push -u origin <branch>`, then `gh pr view` to reuse an OPEN PR or `gh pr create` for the first one. A merged or closed PR for the branch is refused: one branch, one PR per repo, so rework updates the same PR. The result is recorded on the item (`delivery`) and as `delivery` and `merge` evidence. `gh` comes from `SPECFLOW_GH` when set (tests use a fake). **Release** (`specflow release`): config `release.steps` and `post_release` run in array order from each repo folder; steps of kind migrate or restart, and any step with approval `ask`, stop the run so the PM can confirm each one. Progress is kept on the item (`release_progress`), every run is evidence, and `released` needs every configured step to have passed when release by AI is on. The release role only proposes steps and writes rollback notes.

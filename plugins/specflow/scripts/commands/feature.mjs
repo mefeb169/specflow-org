@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { UserError, getFeature, getRepo, logHistory, now, posix, repoDir } from '../lib/state.mjs';
-import { BLOCKER_KINDS, DEP_TYPES, GATES, PRIORITIES, RISKS } from '../lib/lifecycle.mjs';
+import { UserError, getFeature, normalizeFeature, getRepo, logHistory, now, posix, repoDir } from '../lib/state.mjs';
+import { BLOCKER_KINDS, DEP_TYPES, GATES, LANES, PRIORITIES, RISKS, stageIdx } from '../lib/lifecycle.mjs';
 import { emit, need, csv, checkRepos } from './io.mjs';
 
 export function cmdRepo(args, ctx) {
@@ -24,6 +24,23 @@ export function cmdRepo(args, ctx) {
   emit(repo, () => `Updated repo ${repo.name}: ${JSON.stringify(repo.commands)} confirmed=${repo.commands_confirmed}`);
 }
 
+/** Creates a backlog item (feature, slice or issue) with every schema-v2 field set; the caller saves. */
+export function createItem(ctx, o) {
+  const fid = `F-${String(ctx.backlog.next_id++).padStart(3, '0')}`;
+  const repos = o.repos || [];
+  const feat = {
+    id: fid, title: o.title, summary: o.summary || '', priority: o.priority || 'P2', mvp: !!o.mvp, value: o.value || '', risk: o.risk || 'med',
+    ui: o.ui === undefined ? repos.some((n) => ctx.config.repos.find((r) => r.name === n)?.ui === true) : o.ui,
+    stage: 'proposed', spec_dir: null, repos, branches: {}, deps: [],
+    gates: Object.fromEntries(GATES.map((g) => [g, null])), blockers: [], revisit: null, history: [],
+    kind: o.kind || 'feature', lane: o.lane, parent: o.parent || null, milestone: o.milestone || null, tags: o.tags || [], origin: o.origin || null,
+  };
+  normalizeFeature(feat);
+  logHistory(feat, 'stage', `created at stage proposed${feat.kind === 'feature' ? '' : ` (${feat.kind})`}`);
+  ctx.backlog.features.push(feat);
+  return feat;
+}
+
 export function cmdFeature(args, ctx) {
   const [sub, id, field, ...rest] = args._;
   const f = args.flags;
@@ -32,19 +49,28 @@ export function cmdFeature(args, ctx) {
     const repos = checkRepos(ctx, csv(f.repos));
     const prio = f.priority || 'P2';
     if (!PRIORITIES.includes(prio)) throw new UserError(`priority must be one of ${PRIORITIES.join(', ')}`);
-    const fid = `F-${String(ctx.backlog.next_id++).padStart(3, '0')}`;
-    const feat = {
-      id: fid, title, summary: f.summary || '', priority: prio, mvp: !!f.mvp, value: f.value || '', risk: f.risk || 'med',
-      ui: f.ui === undefined ? repos.some((n) => ctx.config.repos.find((r) => r.name === n)?.ui === true) : String(f.ui) === 'true',
-      stage: 'proposed', spec_dir: null, repos, branches: {}, deps: [],
-      gates: Object.fromEntries(GATES.map((g) => [g, null])), blockers: [], revisit: null, history: [],
-    };
-    logHistory(feat, 'stage', 'created at stage proposed');
-    ctx.backlog.features.push(feat);
+    const feat = createItem(ctx, { title, summary: f.summary, priority: prio, mvp: !!f.mvp, value: f.value, risk: f.risk, ui: f.ui === undefined ? undefined : String(f.ui) === 'true', repos });
     ctx.saveBacklog();
-    return emit(feat, fid);
+    return emit(feat, feat.id);
   }
   const feat = getFeature(ctx, need(id, 'feature id required'));
+  if (sub === 'drop') {
+    const reason = need(typeof f.reason === 'string' ? f.reason : '', '--reason required');
+    if (feat.dropped) throw new UserError(`${feat.id} is already dropped`);
+    feat.dropped = { at: now(), reason };
+    if (ctx.backlog.focus === feat.id) ctx.backlog.focus = null;
+    ctx.backlog.parked = ctx.backlog.parked.filter((x) => x !== feat.id);
+    logHistory(feat, 'link', `dropped: ${reason}`);
+    ctx.saveBacklog();
+    return emit(feat, `${feat.id} dropped`);
+  }
+  if (sub === 'restore') {
+    if (!feat.dropped) throw new UserError(`${feat.id} is not dropped`);
+    feat.dropped = null;
+    logHistory(feat, 'link', 'restored');
+    ctx.saveBacklog();
+    return emit(feat, `${feat.id} restored`);
+  }
   if (sub === 'set') {
     const value = rest.join(' ');
     switch (field) {
@@ -54,8 +80,15 @@ export function cmdFeature(args, ctx) {
       case 'mvp': feat.mvp = value === 'true'; break;
       case 'ui': if (!['true', 'false'].includes(value)) throw new UserError('ui must be true or false'); feat.ui = value === 'true'; break;
       case 'repos': feat.repos = checkRepos(ctx, csv(value)); break;
+      case 'lane':
+        if (!LANES.includes(value)) throw new UserError(`lane must be one of ${LANES.join(', ')}`);
+        if (stageIdx(feat.stage) >= stageIdx('implementing')) throw new UserError(`lane can only change before implementing; ${feat.id} is at ${feat.stage}`);
+        feat.lane = value; break;
+      case 'milestone': feat.milestone = ['none', ''].includes(value) ? null : value; break;
+      case 'tags': feat.tags = csv(value); break;
+      case 'size_waiver': feat.size_waiver = value.trim() || null; break;
       case 'stage': case 'gates': throw new UserError('stage and gates cannot be set here; use `stage set` / `gate approve`');
-      default: throw new UserError('settable fields: title, summary, priority, mvp, value, risk, repos, ui');
+      default: throw new UserError('settable fields: title, summary, priority, mvp, value, risk, repos, ui, lane, milestone, tags, size_waiver');
     }
     logHistory(feat, 'link', `set ${field}`);
     ctx.saveBacklog();
@@ -81,7 +114,7 @@ export function cmdFeature(args, ctx) {
     fs.writeFileSync(path.join(loc, '.specify', 'feature.json'), JSON.stringify({ feature_directory: fd }));
     return emit({ id: feat.id, feature_json: posix(path.relative(ctx.root, path.join(loc, '.specify', 'feature.json'))) || '.specify/feature.json', feature_directory: fd }, `Active feature for Spec Kit: ${fd}`);
   }
-  throw new UserError('usage: feature add|set|link|activate');
+  throw new UserError('usage: feature add|set|link|activate|drop|restore');
 }
 
 function reaches(ctx, from, target, seen = new Set()) {

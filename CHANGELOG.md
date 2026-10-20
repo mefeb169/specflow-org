@@ -2,6 +2,52 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/). Versions follow the plugin version in `plugins/specflow/.claude-plugin/plugin.json`.
 
+## [0.7.0] - 2026-10-20
+Phase 3 of the team-model roadmap: delivery and release pipelines. A 0.6.0 workspace keeps working before `specflow upgrade --apply`.
+### Added
+- `deliver <id> [--dry-run]`: from a verified state only, pushes the item's branch (never `--force`) and opens or updates ONE pull request per repo with `gh`, in deploy order; refuses a merged or closed PR for the branch; records `delivery` on the item and `delivery` evidence. `deliver status <id>` refreshes PR states and records `merge` evidence once all are merged; `deliver merge <id>` works only in `push-pr-merge` mode after the acceptance gate.
+- Release configuration `release.steps`, `release.post_release`, `release.require_merged` with `release step add|rm|list` and `release set`.
+- `release plan <id>` (writes `release.md`, keeps the rollback notes), `release run <id> [--step name --again]` (steps without approval run in order and stop at the first that needs approval; progress, evidence, stops at the first failure), `release verify <id>` (post-release checks).
+- Release role `specflow:release-manager` (sonnet, enabled with `release.by_ai`): proposes steps, checks migrations, writes rollback notes; `dispatch` routes an accepted item with an approved acceptance gate to it, or to the PM. Setup asks `release.steps` when release by AI is on.
+- Guard: `deliver` (except `status` and `--dry-run`), `release run` and `release verify` ask in the main session, are denied unattended, and are denied for subagents.
+- Evidence kinds `delivery` and `merge`; upgrade migration `0.7.0`; `SPECFLOW_GH` selects the `gh` executable (used by tests).
+### Changed
+- Dispatch prompts for builder, lead and verifier carry a `Testing:` line (unit tests required, test data rules); the verify skill treats logic without tests as a blocking finding when unit tests are required.
+- Setup explanations for testing, release and graphify now describe what happens (graphify is still only recorded).
+- The flow skill covers delivery and release; the handoff file and `status <id>` show the delivery table; `released` needs every configured release step when release by AI is on.
+
+## [0.6.0] - 2026-10-20
+Phase 2 of the team-model roadmap: roles as subagents. A 0.5.0 workspace keeps working before `specflow upgrade --apply`.
+### Added
+- Role agents `product`, `architect`, `ux`, `lead`, `builder`, `verifier` (next to `independent-reviewer` and `repo-profiler`) with a model policy (opus plans, sonnet builds, haiku profiles) and a shared subagent contract (no user contact, questions via `question add`, checkpoint, report of at most 15 lines).
+- `team` commands: roles, models, `--enabled`, `locked` roles, `communication`, `workflow`, leads per area, `team generate` (ux from repos, lead suggestion with 4+ repos).
+- `dispatch <id>`: deterministic packet (role, agent, model, repo, repos still to do in deploy order, prompt under 1,200 characters); disabled roles fall back (ux to architect, lead to builder, otherwise the PM).
+- Guard: subagent calls (hook input has `agent_id`) are denied `gate approve`, `init`, `upgrade --apply`, `install`, `uninstall`, `specify init`, `git push`, `gh pr create|merge`.
+- Setup interview as data: `setup questions|apply|status`; answers are validated, written to config and logged as decisions. New skill `specflow:setup`.
+- Config keys `team`, `delivery`, `release`, `testing`, `tools` (the last three are recorded now and used by later phases); upgrade migration `0.6.0`.
+- Eval case `pm-dispatches-role`.
+### Changed
+- The `flow` skill is now the PM loop: dispatch, spawn, read the report, route questions, present gates. The PM does no role work except when a disabled role falls back to it.
+- Role skills gain a "When dispatched as a subagent" section; lifecycle.md gains the stage-to-role-to-agent table and the lead rule; the workspace CLAUDE.md block states that only the PM talks to the user and approves gates.
+- `status` with more than 30 open items and no milestone lists only items past `proposed` plus a summary line (`status --all` shows everything).
+
+## [0.5.0] - 2026-10-20
+Phase 1 of the team-model roadmap: continuity and lean context. Schema v2; a 0.4.0 workspace keeps working before `specflow upgrade --apply`.
+### Added
+- Work item kinds (`feature`, `slice`, `bug`, `debt`, `chore`), lanes (`full`, `lite`) with configurable lite gates, `milestone`, `tags`, `origin`.
+- `slice add`, the size rule at `planned` (`check size`, `size_waiver`) and container features.
+- `issue add|list`, `feature drop|restore`, `question add|answer|list`, `intake <file>`.
+- `focus`, `interrupt` (park, P0 urgent item, conflict report), `resume`, `milestone`; `next` and `status` filter by milestone and hide done/dropped items (`--all`).
+- `checkpoint` and generated handoff files (`specs/<dir>/handoff.md`, at most about 60 lines), regenerated on stage changes, gate approvals and rework; new `PreCompact` hook and a handoff refresh in the `Stop` hook.
+- `rework start|close`: review fixes stay on the same branch, no new PR.
+- `.specflow/memory.json` with `pref`, `decision` and `lesson` commands (guarded like the other state files); answered questions are logged as decisions.
+- Upgrade migration `0.5.0`; `upgrade --apply` now saves the backlog as well as the config.
+- Eval case `resume-from-handoff`.
+### Changed
+- The session brief shows Focus, Parked, Milestone, Preferences and open questions and stays under about 1,500 characters (long lines are truncated, lowest-priority lines dropped).
+- Skills: lifecycle and role contract (artifact budgets, issues instead of scope growth, questions, checkpoints), flow (focus, interrupts, no re-asking), architect (slicing), verify (rework rounds), build, product (intake).
+- The split of `backlog.json` into per-feature files was dropped from Phase 1 (the cost is in CLI output, which is now smaller).
+
 ## [0.4.0] - 2026-10-16
 Renamed to **specflow**. Names are now frozen.
 ### Changed (breaking)

@@ -1,8 +1,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { AUTONOMY_GATES, DEP_MIN_STAGE, GATES, GATE_BEFORE, GATE_STAGE, STAGES, UX_SECTIONS, stageIdx } from './lifecycle.mjs';
-import { isUi, repoDir, specDirAbs, uxConfig } from './state.mjs';
+import { isContainer, isUi, liteGates, repoDir, slicingCfg, specDirAbs, uxConfig } from './state.mjs';
 import { headSha, isGitRepo } from './git.mjs';
+import { releaseCfg } from './team.mjs';
 import { latestEvidence, readEvidence } from './verify.mjs';
 
 const readIf = (file) => (file && fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : null);
@@ -41,6 +42,22 @@ export function checkTasks(ctx, f) {
   return { total: tasks.length, done: tasks.filter((t) => t.done).length, perRepo, errors };
 }
 
+/** Task and migration-task counts from tasks.md (null when it does not exist). */
+export function sizeCounts(ctx, f) {
+  const tasks = parseTasks(ctx, f);
+  if (tasks === null) return null;
+  return { tasks: tasks.length, migrations: tasks.filter((t) => /migrat/i.test(t.text)).length };
+}
+
+/** Failure message when a work item exceeds the slicing limits and has no waiver (null = fine). */
+export function sizeFailure(ctx, f) {
+  if (f.size_waiver?.trim()) return null;
+  const c = sizeCounts(ctx, f);
+  const lim = slicingCfg(ctx);
+  if (!c || (c.tasks <= lim.max_tasks && c.migrations <= lim.max_migrations)) return null;
+  return `too large (${c.tasks} tasks, ${c.migrations} migrations; limit ${lim.max_tasks}/${lim.max_migrations}): split into slices (specflow slice add ${f.id} ...) or record a waiver (specflow feature set ${f.id} size_waiver "<reason>")`;
+}
+
 export function traits(ctx, f) {
   const dir = specDirAbs(ctx, f);
   const plan = readIf(dir && path.join(dir, 'plan.md')) || '';
@@ -66,8 +83,10 @@ export function uxCheck(ctx, f) {
 export function requiredGates(ctx, f) {
   const level = ctx.config.autonomy || 'standard';
   const base = AUTONOMY_GATES[level] || AUTONOMY_GATES.standard;
+  const lite = f.lane === 'lite' ? liteGates(ctx) : null;
   return GATES.filter((g) => {
     if (!base.includes(g)) return false;
+    if (lite && !lite.includes(g)) return false;
     if (g === 'design' && level === 'standard') {
       const t = traits(ctx, f);
       return t.multiRepo || t.migration || (t.ui && uxConfig(ctx).design_gate_for_ui);
@@ -85,6 +104,7 @@ export function depsStatus(ctx, f) {
     if (!min) continue;
     const dep = ctx.backlog.features.find((x) => x.id === d.id);
     if (!dep) holding.push(`${d.id} (${d.type}) does not exist`);
+    else if (dep.dropped) holding.push(`dependency ${d.id} was dropped`);
     else if (stageIdx(dep.stage) < stageIdx(min)) holding.push(`${d.id} (${d.type}) is at ${dep.stage}, needs >= ${min}`);
   }
   return holding;
@@ -119,14 +139,20 @@ export function checkEntry(ctx, f, target) {
     }
     case 'designed': {
       const plan = readIf(dir && path.join(dir, 'plan.md'));
-      need(plan !== null, 'plan.md does not exist');
-      uxCheck(ctx, f).forEach((m) => fail.push(m));
+      // The lite lane needs neither plan.md nor ux.md here; a plan that exists still gets its Repository Impact check.
+      if (f.lane !== 'lite') {
+        need(plan !== null, 'plan.md does not exist');
+        uxCheck(ctx, f).forEach((m) => fail.push(m));
+      }
       if (plan !== null && f.repos.length > 1) need(/^##\s+Repository Impact/im.test(plan), 'plan.md lacks a "## Repository Impact" section (required when repos > 1)');
       break;
     }
     case 'planned': {
+      if (isContainer(ctx, f)) break; // a container plans through its slices and needs no tasks.md
       const r = checkTasks(ctx, f);
       r.errors.forEach((e) => fail.push(e === 'tasks.md not found' ? 'tasks.md does not exist' : e));
+      const big = sizeFailure(ctx, f);
+      if (big) fail.push(big);
       break;
     }
     case 'implementing':
@@ -163,6 +189,9 @@ export function checkEntry(ctx, f, target) {
     case 'released': {
       const ev = readEvidence(ctx, f);
       need(ev.some((e) => e.kind === 'release' && e.result === 'pass'), 'no release evidence (specflow evidence add --kind release --result pass)');
+      // With AI releasing, every configured step must have passed (progress is recorded by `release run`).
+      const rc = releaseCfg(ctx);
+      if (rc.by_ai) for (const s of rc.steps) need(f.release_progress?.[s.name]?.result === 'pass', `release step "${s.name}" has not passed (specflow release run ${f.id})`);
       break;
     }
     case 'done': {

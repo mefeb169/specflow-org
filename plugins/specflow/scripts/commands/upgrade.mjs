@@ -18,6 +18,7 @@ export function cmdUpgrade(args, ctx) {
     const wrote = applyClaudeBlock(ctx.root, { write: true });
     if (versionBehind) ctx.config.framework_version = target;
     ctx.saveConfig();
+    ctx.saveBacklog();
     block.status = wrote.status;
   }
 
