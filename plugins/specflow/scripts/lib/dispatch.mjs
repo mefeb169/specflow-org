@@ -3,16 +3,29 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { UserError, handoffRel, inDeployOrder, isContainer, isUi, specDirAbs } from './state.mjs';
 import { checkTasks, uxCheck } from './gates.mjs';
-import { ROLE_AGENT, ROLE_FALLBACK, ROLE_TARGET, TEAM_ROLES, leadOf, teamCfg } from './team.mjs';
+import { ROLE_AGENT, ROLE_FALLBACK, ROLE_TARGET, TEAM_ROLES, leadOf, releaseCfg, teamCfg, testingCfg } from './team.mjs';
+import { releaseFile } from './release.mjs';
 
 const PROMPT_MAX = 1200;
 const cut = (s, n) => (String(s).length > n ? `${String(s).slice(0, n - 3)}...` : String(s));
 const ARTIFACTS = ['spec.md', 'ux.md', 'plan.md', 'research.md', 'tasks.md', 'verification.md'];
 
+function testingLine(ctx) {
+  const t = testingCfg(ctx);
+  return `Testing: unit tests required: ${t.unit_required ? 'yes' : 'no'}.${t.data_rules ? ` Test data rules: ${cut(t.data_rules, 160)}` : ''}`;
+}
+
+function releaseLine(ctx, f) {
+  const r = releaseCfg(ctx);
+  const prs = Object.entries(f.delivery || {}).map(([n, d]) => `${n} ${d.pr_state}`).join(', ');
+  return `Release: ${r.steps.length} step(s) configured${r.steps.length ? '' : ' (propose some from the repo docs)'}; PRs: ${prs || 'none'}; plan file ${releaseFile(ctx, f)}. Never run release run; the PM does.`;
+}
+
 /** Role that owns the work leaving the item's current stage (same routing as nextAction), before team config applies. */
 export function stageRole(ctx, f) {
   switch (f.stage) {
-    case 'proposed': case 'defined': case 'accepted': return 'product';
+    case 'proposed': case 'defined': return 'product';
+    case 'accepted': return f.gates.acceptance ? 'release' : 'product'; // after acceptance the release role (or the PM) delivers and releases
     case 'specified': return isUi(ctx, f) && uxCheck(ctx, f).length ? 'ux' : 'architect';
     case 'designed': return 'architect';
     case 'planned': case 'implementing': return 'builder';
@@ -68,13 +81,15 @@ export function dispatch(ctx, f, flags = {}) {
   }
   const handoff = handoffRel(ctx, f);
   if (!requested) {
-    const prompt = `${f.id} is at ${f.stage}: no team role owns this stage. The PM records post-release evidence and closes it (, ). Handoff: ${handoff}.`;
+    const prompt = `${f.id} is at ${f.stage}: no team role owns this stage. The PM runs the post-release checks (specflow release verify) and closes it. Handoff: ${handoff}.`;
     return { id: f.id, requested_role: 'pm', covered_by: null, enabled: true, role: 'pm', agent: null, model: null, repo: null, repos_todo: [], questions: [], prompt };
   }
   const eff = resolveRole(team, requested);
   const base = { id: f.id, requested_role: requested, covered_by: eff.role === requested ? null : eff.role || 'pm', enabled: team.roles[requested].enabled };
   if (!eff.role) {
-    const prompt = `The ${requested} role is disabled and nothing covers it: the PM does this step itself for ${f.id} (${f.stage}). Read ${handoff}, follow the ${requested} skill, and record the result with the CLI.`;
+    const prompt = requested === 'release'
+      ? `The release role is off (release.by_ai is false): the PM delivers and releases ${f.id} itself, or the owner does. Run specflow deliver, then specflow release plan and follow release.md. Handoff: ${handoff}.`
+      : `The ${requested} role is disabled and nothing covers it: the PM does this step itself for ${f.id} (${f.stage}). Read ${handoff}, follow the ${requested} skill, and record the result with the CLI.`;
     return { ...base, role: 'pm', agent: null, model: null, repo: null, repos_todo: [], questions: [], prompt };
   }
   const role = eff.role;
@@ -99,6 +114,8 @@ export function dispatch(ctx, f, flags = {}) {
     lead ? `Lead area: ${lead.name} (repos: ${lead.repos.filter((n) => f.repos.includes(n)).join(', ')})` : '',
     `Handoff: ${handoff}${fs.existsSync(path.resolve(ctx.root, handoff)) ? '' : ' (not written yet)'}`,
     `Spec dir: ${f.spec_dir || '(none)'}${have.length ? ` (${have.join(', ')})` : ''}`,
+    ['builder', 'lead', 'verifier'].includes(role) ? testingLine(ctx) : '',
+    role === 'release' ? releaseLine(ctx, f) : '',
     qs.length ? `Open questions for you: ${shown}` : '',
     `PM update level: ${team.communication}.`,
     'Follow the subagent contract in your agent definition.',

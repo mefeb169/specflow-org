@@ -4,7 +4,7 @@ import path from 'node:path';
 import { UserError, currentMilestone, repoDir, slicingCfg } from './state.mjs';
 import { AUTONOMY_LEVELS } from './lifecycle.mjs';
 import { currentBranch } from './git.mjs';
-import { COMMUNICATION, DELIVERY_MODES, WORKFLOWS, deliveryCfg, materializeTeam, modelOk, releaseCfg, teamCfg, testingCfg, toolsCfg } from './team.mjs';
+import { COMMUNICATION, DELIVERY_MODES, WORKFLOWS, deliveryCfg, materializeTeam, modelOk, releaseCfg, setReleaseByAi, teamCfg, testingCfg, toolsCfg } from './team.mjs';
 import { stageIdx } from './lifecycle.mjs';
 
 const PLANNING_ROLES = ['product', 'architect', 'ux', 'lead', 'reviewer'];
@@ -18,6 +18,7 @@ export function graphifyAvailable() {
   return (process.env.PATH || '').split(path.delimiter).filter(Boolean).some((d) => exts.some((e) => fs.existsSync(path.join(d, `graphify${e}`))));
 }
 
+const RELEASE_STEPS_TEXT = 'Which commands deploy each repo? The release role can draft them from your docs';
 const yn = (b) => (b ? 'yes' : 'no');
 
 /** The branch all git repos currently sit on, or null when they differ (or there are none). */
@@ -39,14 +40,15 @@ export function setupQuestions(ctx) {
     { id: 'autonomy', text: 'Which approvals do you want before work moves on?', options: opts([['guided', 'Guided: approve every gate'], ['standard', 'Standard: spec, implementation, acceptance, release (plus design when risky)'], ['autonomous', 'Autonomous: only acceptance and release']]), default: ctx.config.autonomy || 'standard', why: 'Gates are the points where you review before the team continues.' },
     { id: 'delivery.mode', text: 'After review passes, what should the team do with the code?', options: opts([['commit', 'Commit on the feature branch only'], ['push-pr', 'Push and open pull requests (you merge)'], ['push-pr-merge', 'Push, open and merge pull requests']]), default: del.mode, why: 'Controls how far the AI goes with Git once a slice is verified.' },
     { id: 'delivery.target_branch', text: 'Which branch should pull requests go to?', options: [], default: del.target_branch || commonBranch(ctx), why: 'Used when the team opens pull requests; blank means each repo\'s own default.' },
-    { id: 'release.by_ai', text: 'Should the AI team also release and deploy?', options: YESNO, default: yn(releaseCfg(ctx).by_ai), why: 'Yes is recorded now; the release team (steps, approvals) is configured in a later phase.' },
-    { id: 'testing.unit_required', text: 'Should new logic require unit tests?', options: YESNO, default: yn(testingCfg(ctx).unit_required), why: 'The verifier fails a slice that adds logic without tests when this is on.' },
-    { id: 'testing.data_rules', text: 'Any rules for test data (for example "use yopmail.com addresses")?', options: [], default: testingCfg(ctx).data_rules || null, why: 'Passed to builders so test fixtures follow your rules.' },
+    { id: 'release.by_ai', text: 'Should the AI team also release and deploy?', options: YESNO, default: yn(releaseCfg(ctx).by_ai), why: 'Yes turns on the release role and `specflow release run`: the team runs your deploy steps one by one, asking you before risky ones. No means you follow the generated release plan yourself.' },
+    ...(releaseCfg(ctx).by_ai ? [{ id: 'release.steps', text: RELEASE_STEPS_TEXT, options: [], default: 'draft from docs', why: 'The release role reads the docs of your repos and proposes the steps; you confirm each one before it is added.' }] : []),
+    { id: 'testing.unit_required', text: 'Should new logic require unit tests?', options: YESNO, default: yn(testingCfg(ctx).unit_required), why: 'When on, builders write unit tests with new logic, and the verifier reports a slice that adds logic without tests as a blocking finding.' },
+    { id: 'testing.data_rules', text: 'Any rules for test data (for example "use yopmail.com addresses")?', options: [], default: testingCfg(ctx).data_rules || null, why: 'Every builder, lead and verifier dispatch carries this text, so test fixtures follow your rules.' },
     { id: 'models.planning', text: 'Which model should plan (product, architect, UX, leads, reviewer)?', options: opts([['opus', 'Opus (strongest)'], ['sonnet', 'Sonnet'], ['haiku', 'Haiku (fastest)']]), default: models(PLANNING_ROLES).length === 1 ? models(PLANNING_ROLES)[0] : 'opus', why: 'Planning mistakes are the most expensive; the default spends tokens here.' },
     { id: 'models.building', text: 'Which model should implement and verify (builders, verifier)?', options: opts([['sonnet', 'Sonnet (balanced)'], ['opus', 'Opus'], ['haiku', 'Haiku (fastest)']]), default: models(BUILDING_ROLES).length === 1 ? models(BUILDING_ROLES)[0] : 'sonnet', why: 'Building follows a written plan, so a cheaper model is usually enough.' },
     { id: 'team.leads', text: 'Use a team lead per area (for example backend, web, mobile)?', options: YESNO, default: yn(team.roles.lead.enabled), why: repos >= 4 ? `You have ${repos} repos: leads keep each area's plan separate (one lead per repo to start).` : 'Leads only pay off with many repos; with few repos the architect plans directly.' },
     { id: 'team.communication', text: 'How much detail do you want in progress updates?', options: opts([['short', 'Short'], ['normal', 'Normal'], ['detailed', 'Detailed']]), default: team.communication, why: 'Sets how much the PM tells you after each step.' },
-    { id: 'tools.graphify', text: 'Use the graphify code graph (AST only, no AI) for code search?', options: YESNO, default: yn(graphifyAvailable()), why: graphifyAvailable() ? 'graphify is installed.' : 'graphify was not found on PATH; builders fall back to grep.' },
+    { id: 'tools.graphify', text: 'Use the graphify code graph (AST only, no AI) for code search?', options: YESNO, default: yn(graphifyAvailable()), why: `Recorded only for now: nothing uses graphify yet (a later phase will). ${graphifyAvailable() ? 'graphify is installed.' : 'graphify was not found on PATH.'}` },
     { id: 'milestone', text: 'Is there a current milestone to focus on (name), or none?', options: [], default: currentMilestone(ctx), why: open > 30 ? `${open} items are open: without a milestone the status list will be long.` : 'A milestone limits status and next to one scope.' },
     { id: 'slicing', text: 'When should a slice be split (tasks and migrations)?', options: [], default: `${sl.max_tasks} tasks / ${sl.max_migrations} migration`, why: 'Slices above this size must be split or carry a recorded waiver.' },
   ];
@@ -76,7 +78,9 @@ const HANDLERS = {
   autonomy: { parse: oneOf(AUTONOMY_LEVELS), set: (c, v) => { c.config.autonomy = v; } },
   'delivery.mode': { parse: oneOf(DELIVERY_MODES), set: (c, v) => { c.config.delivery = { ...deliveryCfg(c), mode: v }; } },
   'delivery.target_branch': { parse: noneToNull, set: (c, v) => { c.config.delivery = { ...deliveryCfg(c), target_branch: v }; } },
-  'release.by_ai': { parse: bool, set: (c, v) => { c.config.release = { ...releaseCfg(c), by_ai: v }; } },
+  'release.by_ai': { parse: bool, set: (c, v) => setReleaseByAi(c, v) },
+  // Recorded in the decision log only: the setup skill dispatches the release role to draft steps and the user confirms each one.
+  'release.steps': { parse: text, set: () => {} },
   'testing.unit_required': { parse: bool, set: (c, v) => { c.config.testing = { ...testingCfg(c), unit_required: v }; } },
   'testing.data_rules': { parse: (v) => { const s = text(v); return ['none', 'null'].includes(s.toLowerCase()) ? '' : s; }, set: (c, v) => { c.config.testing = { ...testingCfg(c), data_rules: v }; } },
   'models.planning': { parse: (v) => { if (!modelOk(v)) throw new Error('must be opus, sonnet, haiku, inherit, fable or a claude-* id'); return v; }, set: (c, v) => setModels(c, PLANNING_ROLES, v) },
@@ -112,13 +116,14 @@ export function applyAnswers(ctx, answers) {
     try { parsed.push({ id, value: h.parse(raw) }); } catch (e) { errors.push(`${id}: ${e.message}`); }
   }
   if (errors.length) throw new UserError(`setup answers rejected, nothing written:\n  ${errors.join('\n  ')}\nValid ids: ${Object.keys(HANDLERS).join(', ')}`);
-  const qs = Object.fromEntries(setupQuestions(ctx).map((q) => [q.id, q]));
   const out = [];
   for (const { id, value } of parsed) {
     HANDLERS[id].set(ctx, value);
-    out.push({ id, question: qs[id].text, answer: showValue(id, value) });
+    out.push({ id, answer: showValue(id, value) });
   }
-  return out;
+  // Question texts are read after applying: release.steps only exists once release.by_ai is on.
+  const qs = Object.fromEntries(setupQuestions(ctx).map((q) => [q.id, q]));
+  return out.map((o) => ({ ...o, question: qs[o.id]?.text || RELEASE_STEPS_TEXT }));
 }
 
 /** Which questions the decision log already answers (the latest project-scope decision by the user wins). */

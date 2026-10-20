@@ -3,7 +3,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { LITE_GATES_DEFAULT, SLICING_DEFAULTS, UX_DEFAULTS } from './lifecycle.mjs';
-import { fillTeamDefaults } from './team.mjs';
+import { fillTeamDefaults, teamCfg } from './team.mjs';
 import { LEGACY_STATE_DIR, STATE_DIR, UserError, paths, readJson } from './state.mjs';
 
 const gitignorePath = (ctx) => path.join(ctx.root, '.gitignore');
@@ -98,5 +98,23 @@ export const MIGRATIONS = [
       return keys.length ? [`config: add ${keys.join(', ')} (defaults; ux role enabled when a repo has ui: true)`] : [];
     },
     apply(ctx) { fillTeamDefaults(ctx); },
+  },
+  {
+    to: '0.7.0',
+    describe: 'Delivery and release pipelines: release.steps, post_release, require_merged and the release role',
+    plan(ctx) {
+      const out = [];
+      const missing = ['steps', 'post_release', 'require_merged'].filter((k) => ctx.config.release?.[k] === undefined);
+      if (missing.length) out.push(`config.release: add ${missing.join(', ')} (by_ai is kept)`);
+      if (!ctx.config.team?.roles?.release) out.push('config.team.roles.release = enabled follows release.by_ai, model sonnet');
+      return out;
+    },
+    apply(ctx) {
+      const r = ctx.config.release || {};
+      ctx.config.release = { ...r, by_ai: r.by_ai ?? false, steps: r.steps ?? [], post_release: r.post_release ?? [], require_merged: r.require_merged ?? true };
+      const t = ctx.config.team ||= teamCfg(ctx);
+      t.roles ||= {};
+      t.roles.release ||= { enabled: !!ctx.config.release.by_ai, model: 'sonnet' };
+    },
   },
 ];

@@ -52,6 +52,10 @@
       "profiler": {
         "enabled": true,
         "model": "haiku"
+      },
+      "release": {
+        "enabled": false,
+        "model": "sonnet"
       }
     },
     "leads": [],
@@ -65,7 +69,10 @@
     "pr_tool": "gh"
   },
   "release": {
-    "by_ai": false
+    "by_ai": false,
+    "steps": [],
+    "post_release": [],
+    "require_merged": true
   },
   "testing": {
     "unit_required": true,

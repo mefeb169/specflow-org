@@ -2,20 +2,20 @@
 // helpers so a 0.5.0 config needs no rewrite on read.
 import { UserError } from './state.mjs';
 
-export const TEAM_ROLES = ['product', 'architect', 'ux', 'lead', 'builder', 'verifier', 'reviewer', 'profiler'];
+export const TEAM_ROLES = ['product', 'architect', 'ux', 'lead', 'builder', 'verifier', 'reviewer', 'profiler', 'release'];
 // Plugin agent that runs each role (file names under agents/).
 export const ROLE_AGENT = {
   product: 'specflow:product', architect: 'specflow:architect', ux: 'specflow:ux', lead: 'specflow:lead', builder: 'specflow:builder',
-  verifier: 'specflow:verifier', reviewer: 'specflow:independent-reviewer', profiler: 'specflow:repo-profiler',
+  verifier: 'specflow:verifier', reviewer: 'specflow:independent-reviewer', profiler: 'specflow:repo-profiler', release: 'specflow:release-manager',
 };
 // Who covers a disabled role; anything not listed (or whose cover is also disabled) falls back to the PM.
 export const ROLE_FALLBACK = { ux: 'architect', lead: 'builder' };
 // Question target (QUESTION_TARGETS) that each role answers.
-export const ROLE_TARGET = { product: 'product', architect: 'architect', ux: 'ux', lead: 'build', builder: 'build', verifier: 'verify', reviewer: 'verify' };
+export const ROLE_TARGET = { product: 'product', architect: 'architect', ux: 'ux', lead: 'build', builder: 'build', verifier: 'verify', reviewer: 'verify', release: 'build' };
 export const COMMUNICATION = ['short', 'normal', 'detailed'];
 export const WORKFLOWS = ['feature', 'task'];
 export const DELIVERY_MODES = ['commit', 'push-pr', 'push-pr-merge'];
-const DEFAULT_MODEL = { product: 'opus', architect: 'opus', ux: 'opus', lead: 'opus', builder: 'sonnet', verifier: 'sonnet', reviewer: 'opus', profiler: 'haiku' };
+const DEFAULT_MODEL = { product: 'opus', architect: 'opus', ux: 'opus', lead: 'opus', builder: 'sonnet', verifier: 'sonnet', reviewer: 'opus', profiler: 'haiku', release: 'sonnet' };
 
 export const modelOk = (m) => typeof m === 'string' && (['opus', 'sonnet', 'haiku', 'inherit', 'fable'].includes(m) || /^claude-\S+$/.test(m));
 export const anyUiRepo = (ctx) => (ctx.config.repos || []).some((r) => r.ui === true);
@@ -26,7 +26,7 @@ export function teamCfg(ctx) {
   const roles = {};
   for (const r of TEAM_ROLES) {
     const given = t.roles?.[r] || {};
-    const enabled = given.enabled !== undefined ? given.enabled : r === 'ux' ? anyUiRepo(ctx) : r === 'lead' ? (t.leads || []).length > 0 : true;
+    const enabled = given.enabled !== undefined ? given.enabled : r === 'ux' ? anyUiRepo(ctx) : r === 'lead' ? (t.leads || []).length > 0 : r === 'release' ? !!ctx.config.release?.by_ai : true;
     roles[r] = { enabled: !!enabled, model: given.model || DEFAULT_MODEL[r] };
   }
   return { roles, leads: (t.leads || []).map((l) => ({ name: l.name, repos: [...l.repos] })), locked: [...(t.locked || [])], communication: t.communication || 'short', workflow: t.workflow || 'feature' };

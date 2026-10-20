@@ -434,3 +434,135 @@ test('P3-15. guard: release run and verify ask (with step names), deny unattende
   for (const free of ['release plan F-001', 'release step list', 'release step add x --run y']) assert.equal(dec(run(`${'specflow'} ${free}`, { agent_id: 'a1' })), null, free);
   t.cleanup();
 });
+
+// ---------- release role, dispatch, setup, migration ----------
+const roleOf = (team, r) => team.roles.find((x) => x.role === r);
+const disp = (root, ...a) => JSON.parse(ok(cli(root, 'dispatch', ...a, '--json')).out);
+const AGENTS = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')), '..', 'plugins', 'specflow', 'agents');
+
+test('P3-16. release role: agent file, default off, follows release.by_ai unless locked', () => {
+  const t = setup();
+  const { fx } = t;
+  const text = fs.readFileSync(path.join(AGENTS, 'release-manager.md'), 'utf8');
+  assert.match(text, /^---\nname: release-manager\n/);
+  assert.match(text, /\nmodel: sonnet\n/);
+  assert.doesNotMatch(text.split('\n---\n')[0], /Agent/);
+  assert.match(text, /## Subagent contract/);
+  assert.match(text, /never add them yourself/i);
+  assert.match(text, /Never run `release run`/);
+  let team = j(fx.root, 'team');
+  assert.deepEqual([roleOf(team, 'release').enabled, roleOf(team, 'release').model, roleOf(team, 'release').agent], [false, 'sonnet', 'specflow:release-manager']);
+  ok(cli(fx.root, 'release', 'set', '--by-ai', 'true'));
+  assert.equal(roleOf(j(fx.root, 'team'), 'release').enabled, true);
+  ok(cli(fx.root, 'release', 'set', '--by-ai', 'false'));
+  assert.equal(roleOf(j(fx.root, 'team'), 'release').enabled, false);
+  ok(cli(fx.root, 'team', 'set', 'release', '--enabled', 'true'));
+  ok(cli(fx.root, 'release', 'set', '--by-ai', 'false'));
+  assert.equal(roleOf(j(fx.root, 'team'), 'release').enabled, true, 'a role set by hand keeps its setting');
+  assert.equal(j(fx.root, 'validate').ok, true);
+  t.cleanup();
+});
+
+test('P3-17. dispatch: accepted + acceptance gate goes to the release role (or the PM); testing line for builder, lead, verifier', () => {
+  const t = setup();
+  const { fx } = t;
+  let d = disp(fx.root, 'F-001');
+  assert.equal(d.role, 'product', 'accepted without the gate: product');
+  patchBacklog(fx.root, (b) => { b.features[0].gates.acceptance = { approved_at: 'now', by: 'human' }; });
+  d = disp(fx.root, 'F-001');
+  assert.equal(d.role, 'pm');
+  assert.equal(d.requested_role, 'release');
+  assert.match(d.prompt, /specflow deliver/);
+  ok(cli(fx.root, 'release', 'set', '--by-ai', 'true'));
+  d = disp(fx.root, 'F-001');
+  assert.deepEqual([d.role, d.agent, d.model], ['release', 'specflow:release-manager', 'sonnet']);
+  assert.match(d.prompt, /Release: 0 step\(s\) configured \(propose some/);
+  assert.match(d.prompt, /specs\/001-x\/release\.md/);
+  assert.match(d.prompt, /Never run release run/);
+  assert.ok(d.prompt.length <= 1200);
+  // testing line
+  patchBacklog(fx.root, (b) => { b.features[0].stage = 'implementing'; });
+  d = disp(fx.root, 'F-001');
+  assert.equal(d.role, 'builder');
+  assert.match(d.prompt, /Testing: unit tests required: yes\./);
+  assert.doesNotMatch(d.prompt, /Test data rules/);
+  patchCfg(fx.root, (c) => { c.testing = { unit_required: false, data_rules: 'use yopmail.com addresses' }; });
+  assert.match(disp(fx.root, 'F-001').prompt, /Testing: unit tests required: no\. Test data rules: use yopmail\.com addresses/);
+  patchBacklog(fx.root, (b) => { b.features[0].stage = 'verifying'; });
+  assert.match(disp(fx.root, 'F-001').prompt, /Testing: unit tests required: no\. Test data rules: use yopmail/);
+  ok(cli(fx.root, 'team', 'lead', 'add', 'api', '--repos', 'backend'));
+  patchBacklog(fx.root, (b) => { b.features[0].stage = 'implementing'; });
+  d = disp(fx.root, 'F-001');
+  assert.equal(d.role, 'lead');
+  assert.match(d.prompt, /Testing: unit tests required: no/);
+  assert.ok(d.prompt.length <= 1200);
+  patchBacklog(fx.root, (b) => { b.features[0].stage = 'proposed'; });
+  assert.doesNotMatch(disp(fx.root, 'F-001').prompt, /Testing:/, 'planning roles get no testing line');
+  t.cleanup();
+});
+
+test('P3-18. setup: release.steps appears when release.by_ai is on; why texts describe real behavior', () => {
+  const t = setup();
+  const { fx } = t;
+  const qs = j(fx.root, 'setup', 'questions');
+  assert.ok(!qs.some((q) => q.id === 'release.steps'));
+  const byAi = qs.find((q) => q.id === 'release.by_ai');
+  assert.doesNotMatch(byAi.why, /later phase/);
+  assert.match(byAi.why, /release role/);
+  assert.match(qs.find((q) => q.id === 'testing.unit_required').why, /blocking finding/);
+  assert.match(qs.find((q) => q.id === 'testing.data_rules').why, /builder, lead and verifier dispatch/);
+  assert.match(qs.find((q) => q.id === 'tools.graphify').why, /Recorded only/);
+  const file = path.join(fx.root, 'answers.json');
+  fs.writeFileSync(file, JSON.stringify({ 'release.by_ai': 'yes', 'release.steps': 'draft from docs' }));
+  ok(cli(fx.root, 'setup', 'apply', '--answers', file));
+  assert.equal(readCfg(fx.root).release.by_ai, true);
+  assert.equal(roleOf(j(fx.root, 'team'), 'release').enabled, true);
+  const q2 = j(fx.root, 'setup', 'questions').find((q) => q.id === 'release.steps');
+  assert.equal(q2.default, 'draft from docs');
+  assert.match(q2.text, /Which commands deploy each repo\? The release role can draft them from your docs/);
+  assert.ok(readCfg(fx.root).release.steps.length === 0, 'steps are only proposed, never added by setup');
+  const st = j(fx.root, 'setup', 'status').find((x) => x.id === 'release.steps');
+  assert.equal(st.answered, true);
+  t.cleanup();
+});
+
+const V7 = { SPECFLOW_FAKE_FRAMEWORK_VERSION: '0.7.0' };
+const up = (root, ...a) => JSON.parse(cliEnv(root, V7, 'upgrade', ...a, '--json').out);
+
+test('P3-19. migration 0.7.0 from 0.6.0 is additive; chained from 0.4.0', () => {
+  const t = setup();
+  const { fx } = t;
+  patchCfg(fx.root, (c) => {
+    c.framework_version = '0.6.0';
+    c.release = { by_ai: true };
+    delete c.team.roles.release;
+    c.autonomy = 'guided';
+  });
+  const dry = up(fx.root);
+  assert.equal(dry.applied, false);
+  assert.ok(dry.migrations.find((m) => m.to === '0.7.0').changes.length);
+  assert.deepEqual(readCfg(fx.root).release, { by_ai: true }, 'dry run writes nothing');
+  assert.equal(up(fx.root, '--apply').applied, true);
+  const c = readCfg(fx.root);
+  assert.equal(c.framework_version, '0.7.0');
+  assert.deepEqual(c.release, { by_ai: true, steps: [], post_release: [], require_merged: true });
+  assert.deepEqual(c.team.roles.release, { enabled: true, model: 'sonnet' });
+  assert.equal(c.autonomy, 'guided');
+  assert.equal(JSON.parse(cli(fx.root, 'validate', '--json').out).ok, true);
+  assert.equal(up(fx.root, '--apply').migrations.length, 0, 'idempotent');
+  t.cleanup();
+
+  const u = setup();
+  patchCfg(u.fx.root, (c) => {
+    c.framework_version = '0.4.0'; c.schema_version = 1;
+    for (const k of ['current_milestone', 'slicing', 'lanes', 'team', 'delivery', 'release', 'testing', 'tools']) delete c[k];
+  });
+  fs.rmSync(path.join(u.fx.root, '.specflow', 'memory.json'), { force: true });
+  const r = up(u.fx.root, '--apply');
+  assert.deepEqual(r.migrations.map((m) => m.to), ['0.5.0', '0.6.0', '0.7.0']);
+  const after = readCfg(u.fx.root);
+  assert.equal(after.framework_version, '0.7.0');
+  assert.deepEqual(after.release, { by_ai: false, steps: [], post_release: [], require_merged: true });
+  assert.equal(after.team.roles.release.enabled, false);
+  u.cleanup();
+});
