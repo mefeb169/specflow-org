@@ -588,3 +588,13 @@ test('P3-20. skills, docs and workspace block describe delivery and release', ()
   assert.match(readRepo('docs', 'architecture.md'), /A12\. Delivery and release pipelines/);
   assert.match(readRepo(...PLUGIN, 'agents', 'release-manager.md'), /release step add/);
 });
+
+test('P3-21. version 0.7.0 in plugin.json and package.json; HELP lists deliver and release; guard text agrees', () => {
+  assert.equal(JSON.parse(readRepo(...PLUGIN, '.claude-plugin', 'plugin.json')).version, '0.7.0');
+  assert.equal(JSON.parse(readRepo('package.json')).version, '0.7.0');
+  const help = cli(process.cwd(), '--help').out;
+  for (const w of ['deliver <id> [--dry-run]', 'deliver status', 'deliver merge', 'release step add', 'release step rm', 'release step list', 'release set --by-ai', 'release plan <id>', 'release run <id>', 'release verify <id>']) assert.ok(help.includes(w), w);
+  assert.match(readRepo('README.md'), /Public beta \(0\.7\.0\)/);
+  assert.match(readRepo('README.md'), /`deliver <id> \[--dry-run\]`/);
+  assert.match(readRepo('README.md'), /`release plan <id>`/);
+});

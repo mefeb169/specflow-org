@@ -217,6 +217,7 @@ specflow release step add health --run "./scripts/health.sh" --post
 
 - **Update the plugin and command:** `git pull` in the repository, then in Claude `/reload-plugins` (or start a new session). Existing workspaces keep working; if a release needs a state migration, `specflow brief` and `specflow doctor` say so.
 - **0.6.0:** `specflow upgrade --apply` adds `team`, `delivery`, `release`, `testing` and `tools` to `config.json` (additive; the ux role is enabled when a repo has `ui: true`). Nothing is rewritten on read; a 0.5.0 config works unchanged.
+- **0.7.0:** `specflow upgrade --apply` extends `release` with `steps`, `post_release` and `require_merged` (keeping `by_ai`) and adds the `release` team role (enabled when `release.by_ai` is true). Additive only.
 - **0.5.0 (schema v2):** a 0.4.0 workspace keeps working unchanged (missing fields are filled in memory, nothing is rewritten on read). `specflow upgrade` lists the additions, `specflow upgrade --apply` writes them (kinds, lanes, focus, questions, `.specflow/memory.json`, slicing and lane config) without changing any existing value.
 - **Migrate a workspace after an update:** `specflow upgrade` (shows what would change), then `specflow upgrade --apply`.
 - **Uninstall from a project:** `specflow uninstall` (add `--remove-marketplace` to drop the marketplace entry too). Your `.specflow/` and `specs/` folders are untouched.

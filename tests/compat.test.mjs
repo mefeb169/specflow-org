@@ -72,7 +72,7 @@ test('CMP-2. upgrade is a dry run by default, additive when applied, and never t
   const done = cli(fx.root, 'upgrade', '--apply', '--json');
   assert.equal(done.code, 0, done.err);
   const after = readCfg(fx.root);
-  assert.equal(after.framework_version, '0.6.0');
+  assert.equal(after.framework_version, '0.7.0');
   assert.deepEqual(after.ux, { design_gate_for_ui: true, require_ux_review: true });
   assert.equal(after.guards.deny_in_unattended_modes, true);
   assert.deepEqual(after.guards.extra_bash_patterns, ['my-custom-pattern'], 'user customization preserved');

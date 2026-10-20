@@ -55,7 +55,7 @@ test('LEG-2. upgrade dry run changes nothing; --apply migrates to .specflow/ and
   const backlog = JSON.parse(fs.readFileSync(path.join(fx.root, '.specflow', 'backlog.json'), 'utf8'));
   assert.equal(backlog.features[0].id, id, 'backlog preserved');
   const cfg = JSON.parse(fs.readFileSync(path.join(fx.root, '.specflow', 'config.json'), 'utf8'));
-  assert.equal(cfg.framework_version, '0.6.0');
+  assert.equal(cfg.framework_version, '0.7.0');
   const claude = fs.readFileSync(path.join(fx.root, 'CLAUDE.md'), 'utf8');
   assert.match(claude, /User content that must survive/);
   assert.match(claude, /<!-- specflow:begin -->/);
