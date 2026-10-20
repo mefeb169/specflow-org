@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { UserError, getFeature, getRepo, logHistory, now, posix, repoDir } from '../lib/state.mjs';
+import { UserError, getFeature, normalizeFeature, getRepo, logHistory, now, posix, repoDir } from '../lib/state.mjs';
 import { BLOCKER_KINDS, DEP_TYPES, GATES, PRIORITIES, RISKS } from '../lib/lifecycle.mjs';
 import { emit, need, csv, checkRepos } from './io.mjs';
 
@@ -39,6 +39,7 @@ export function cmdFeature(args, ctx) {
       stage: 'proposed', spec_dir: null, repos, branches: {}, deps: [],
       gates: Object.fromEntries(GATES.map((g) => [g, null])), blockers: [], revisit: null, history: [],
     };
+    normalizeFeature(feat);
     logHistory(feat, 'stage', 'created at stage proposed');
     ctx.backlog.features.push(feat);
     ctx.saveBacklog();

@@ -27,6 +27,16 @@ export const UX_DEFAULTS = { design_gate_for_ui: true, require_ux_review: true }
 export const UX_SECTIONS = ['## Flows', '## Screens and states', '## Copy', '## Accessibility'];
 export const BLOCKER_KINDS = ['requirement', 'technical', 'decision', 'external'];
 export const PRIORITIES = ['P0', 'P1', 'P2', 'P3'];
+
+// Work item kinds and lanes (schema v2). Slices and issues use the lite lane.
+export const KINDS = ['feature', 'slice', 'bug', 'debt', 'chore'];
+export const ISSUE_KINDS = ['bug', 'debt', 'chore'];
+export const LANES = ['full', 'lite'];
+export const defaultLane = (kind) => (kind === 'feature' || kind === undefined ? 'full' : 'lite');
+export const SLICING_DEFAULTS = { max_tasks: 15, max_migrations: 1 };
+export const LITE_GATES_DEFAULT = ['acceptance', 'release'];
+export const QUESTION_TARGETS = ['user', 'product', 'architect', 'ux', 'build', 'verify'];
+export const LESSON_STATUSES = ['proposed', 'promoted', 'rejected'];
 export const RISKS = ['low', 'med', 'high'];
 
 // Which role skill owns the work that moves a feature OUT of each stage.

@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { SLICING_DEFAULTS, LITE_GATES_DEFAULT, defaultLane } from './lifecycle.mjs';
 
 export class UserError extends Error {}
 
@@ -51,18 +52,52 @@ export const paths = (root) => {
     specflow: dir,
     config: path.join(dir, 'config.json'),
     backlog: path.join(dir, 'backlog.json'),
+    memory: path.join(dir, 'memory.json'),
     cache: path.join(dir, 'cache'),
     scan: path.join(dir, 'cache', 'scan.json'),
     specs: path.join(root, 'specs'),
   };
 };
 
+export const emptyMemory = () => ({ schema_version: 2, preferences: {}, decisions: [], lessons: [] });
+
+/** Fills schema-v2 fields on a feature in memory (0.4.0 workspaces lack them). Never overwrites a value. */
+export function normalizeFeature(f) {
+  f.kind ??= 'feature';
+  f.lane ??= defaultLane(f.kind);
+  f.parent ??= null;
+  f.milestone ??= null;
+  f.tags ??= [];
+  f.origin ??= null;
+  f.rework ??= [];
+  f.size_waiver ??= null;
+  f.checkpoint ??= null;
+  f.dropped ??= null;
+  return f;
+}
+
+export function normalizeBacklog(b) {
+  b.focus ??= null;
+  b.parked ??= [];
+  b.next_question ??= 1;
+  b.questions ??= [];
+  for (const f of b.features) normalizeFeature(f);
+  return b;
+}
+
+// Config reads go through helpers so a 0.4.0 config needs no rewrite.
+export const slicingCfg = (ctx) => ({ ...SLICING_DEFAULTS, ...(ctx.config.slicing || {}) });
+export const liteGates = (ctx) => ctx.config.lanes?.lite?.gates || LITE_GATES_DEFAULT;
+export const currentMilestone = (ctx) => ctx.config.current_milestone || null;
+
 export function load(root) {
   const p = paths(root);
   const ctx = {
     root,
     config: readJson(p.config),
-    backlog: readJson(p.backlog, { schema_version: 1, next_id: 1, features: [] }),
+    backlog: normalizeBacklog(readJson(p.backlog, { schema_version: 1, next_id: 1, features: [] })),
+    memory: { ...emptyMemory(), ...readJson(p.memory, {}) },
+    saveMemory() { writeJson(paths(root).memory, ctx.memory); },
     // Paths are resolved at save time: an upgrade may rename the legacy state dir mid-run.
     saveConfig() { writeJson(paths(root).config, ctx.config); },
     saveBacklog() { writeJson(paths(root).backlog, ctx.backlog); },

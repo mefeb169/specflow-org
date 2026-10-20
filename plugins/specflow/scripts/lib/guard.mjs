@@ -63,7 +63,7 @@ export function decide({ root, config, backlog, input, cwd }) {
     if (/(?:specflow|sflow|sdlc)(?:\.mjs)?["']?\s+(init|branches\s+create|upgrade\s+--apply|install|uninstall)\b/i.test(cmd) || /\bspecify\s+init\b/i.test(cmd)) {
       return gate('Framework/Spec Kit setup, install/uninstall or branch creation changes the workspace; please confirm.');
     }
-    if (/\.(specflow|sdlc).(backlog|config)\.json/i.test(cmd) && /(>|\btee\b|sed\s+-i|Set-Content|Out-File|Add-Content|writeFile|\brm\b|\bmv\b|\bcp\b|Remove-Item|Move-Item|Rename-Item)/i.test(cmd)) {
+    if (/\.(specflow|sdlc).(backlog|config|memory)\.json/i.test(cmd) && /(>|\btee\b|sed\s+-i|Set-Content|Out-File|Add-Content|writeFile|\brm\b|\bmv\b|\bcp\b|Remove-Item|Move-Item|Rename-Item)/i.test(cmd)) {
       return gate('Shell command appears to modify specflow state files directly. Use the specflow CLI instead.');
     }
     const patterns = [...(config.guards?.destructive_bash_patterns || DEFAULT_DESTRUCTIVE_PATTERNS), ...(config.guards?.extra_bash_patterns || [])];
@@ -83,7 +83,7 @@ export function decide({ root, config, backlog, input, cwd }) {
   if (!within(fileN, rootN)) return null;
 
   const rel = path.relative(root, file).split(path.sep).join('/');
-  if (STATE_DIRS.some((d) => rel === `${d}/backlog.json` || rel === `${d}/config.json`)) {
+  if (STATE_DIRS.some((d) => rel === `${d}/backlog.json` || rel === `${d}/config.json` || rel === `${d}/memory.json`)) {
     return deny('Lifecycle state is managed by the specflow CLI. Use `specflow` subcommands instead of editing this file.');
   }
   if (INSTRUCTION_FILES.test(file) && fs.existsSync(file)) {
