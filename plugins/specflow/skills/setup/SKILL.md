@@ -20,7 +20,7 @@ After `specflow init` + `specflow:discover` on a new workspace, when `specflow s
 4. Write the answers to a JSON file in a temp folder, keyed by question id (partial is fine), for example `{"workflow":"feature","delivery.mode":"push-pr","release.by_ai":"no"}`.
 5. `specflow setup apply --answers <file>`. A rejected file writes nothing: fix the listed values and run it again. Each answer is logged as a project decision.
 6. Show the result with `specflow team show` and a one-paragraph summary. Mention how to change a single role later: `specflow team set <role> --model m --enabled true|false`.
-7. If the owner chose AI release and deploy, say that its steps are configured in a later phase; if graphify was chosen but is not installed, say builders will use grep until it is.
+7. If the owner chose AI release and deploy, run `specflow setup questions` again: it now has `release.steps` (default "draft from docs"). Dispatch the `release` role (`specflow dispatch <id> --role release` needs a work item: use the one in focus or any open one; with an empty backlog, do this when the first item is accepted) to read the repos' docs and propose steps, show the proposal to the user, and add only the steps they confirm with `specflow release step add`. Never add steps the user did not confirm. If graphify was chosen but is not installed, say builders will use grep until it is (graphify is only recorded for now).
 
 ## Must not
 Approve gates, run `init`, or edit `.specflow/*.json` by hand. Do not apply answers the user did not give; defaults are shown, not applied.
