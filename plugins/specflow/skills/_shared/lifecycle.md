@@ -23,7 +23,19 @@ autonomous: acceptance, release). `specflow gate required <id>` is authoritative
 
 UI features: a repo or feature is "UI" when `ui: true` (derived from the scan, overridable with `repo set --ui` / `feature set <id> ui`). In `standard` autonomy the `design` gate is then also required (`config.ux.design_gate_for_ui`, default true), and acceptance needs `ux-review` evidence (`config.ux.require_ux_review`, default true).
 
-Moving backward: `stage set <id> <earlier> --reason "..."` (clears gates from that stage on, records history).
+Moving backward: `stage set <id> <earlier> --reason "..."` (clears gates from that stage on, records history). To send a verified item back for fixes use `rework start <id> --reason "..."` instead (see below).
+
+## Kinds, lanes, slices, rework, focus (schema v2)
+
+- **Kinds:** `feature`, `slice` (child of a feature, has `parent`), `bug`, `debt`, `chore`. **Lanes:** `full` (features) and `lite` (slices and issues).
+- **Lite lane:** only the gates in `config.lanes.lite.gates` (default `acceptance`, `release`). `specified` still needs a (short) spec.md; `designed` needs no plan.md or ux.md (a plan that exists with repos > 1 still needs Repository Impact); `planned` and later are unchanged, and UI items still need `ux-review` evidence. `feature set <id> lane full|lite` only before `implementing`.
+- **Size rule (entry to `planned`, all kinds):** more than `config.slicing.max_tasks` (15) tasks or more than `max_migrations` (1) migration tasks in tasks.md is refused. Split with `slice add <feature> --title ...` (each slice releasable, own acceptance) or record a reason the user approved: `feature set <id> size_waiver "<reason>"`. `check size <id>` prints the counts.
+- **Container:** a feature with slices does not need tasks.md and cannot move past `planned`; work happens in its slices. `stage set <feature> done` is allowed from any stage once every non-dropped slice is done.
+- **Issues:** `issue add "<text>" --kind bug|debt|chore --from <id>` for anything outside the current item's scope; `issue list`. `feature drop <id> --reason` / `feature restore`; dropped items leave `next` and hold dependents.
+- **Rework round:** `rework start <id> --reason` from `verifying` or `accepted` returns the item to `implementing` on the same branches (no new PR); moving to `accepted` closes the round.
+- **Focus:** `focus <id>` marks the item being worked on; `interrupt "<text>"` parks it and focuses a P0 urgent item; `resume` pops the parked one. `checkpoint <id> --next "..."` rewrites the handoff file (`specs/<dir>/handoff.md`, at most ~60 lines).
+- **Milestones:** `milestone set <name>` limits `next` and `status` to that milestone (plus urgent and bug items); `--all` shows everything.
+
 
 ## Spec Kit mapping (skills are discovered; check `specflow doctor` output / `.claude/skills/speckit-*`)
 

@@ -108,6 +108,11 @@ Talk to Claude Code at the workspace root:
 | "let's work on the next feature" | the orchestrator reads state, picks the next *ready* feature and explains why, then routes to the right role |
 | "status" / "what's blocked?" | answered from `specflow status` and `specflow next` output |
 | "write the UX for F-001", "plan F-001", "implement F-001", "verify F-001" | the matching role skill, only if the feature is at the right stage |
+| "do X first, it's urgent" | `specflow interrupt`: the current item is checkpointed and parked, an urgent P0 item is focused, conflicts on shared repos are listed. "Back to what we were doing" runs `specflow resume` |
+| "continue" / "resume F-004" (new session) | the brief names the focus item and its handoff file (`specs/<dir>/handoff.md`); work continues from that, not from re-reading the artifacts |
+| "also fix X" / "note that Y is broken" | `specflow issue add` (a bug, debt or chore item in the lite lane, linked to the current item); nothing grows the current scope silently |
+| a question the team needs answered | `specflow question add`; the answer is logged as a decision and never asked again |
+| "this is too big" | `specflow slice add`: slices are releasable pieces of a feature, planned in the lite lane |
 
 Human gates (`spec`, `design`, `implement`, `acceptance`, `release`) show an approval prompt; no skill approves them for you. In `bypassPermissions`/`dontAsk` modes these actions are refused instead.
 
@@ -118,6 +123,9 @@ sflow status F-001      # one feature: gates, tasks, evidence freshness
 sflow next              # ranked ready features and what holds the others back
 sflow doctor            # Node, git, Spec Kit, PowerShell policy, state validity
 sflow brief             # the short summary Claude sees at session start
+sflow focus F-004       # mark what you are working on; sflow interrupt "..." / sflow resume
+sflow checkpoint F-004 --next "run verify"   # rewrite the handoff file
+sflow issue list        # open bugs, debt and chores; sflow question list --open
 ```
 
 ## Command reference
@@ -131,7 +139,19 @@ Every command accepts `--json`. `specflow help` prints this list.
 | `doctor` | Check Node, git, Spec Kit (style, version range), PowerShell policy, state validity |
 | `validate` | Schema and reference checks of config and backlog |
 | `upgrade [--apply]` | Dry run by default; `--apply` migrates the workspace to this version (additive, never overwrites your files) |
-| `brief` / `status [id]` / `next` | Read-only views of state |
+| `brief` / `status [id] [--all]` / `next [--all]` | Read-only views of state. `status` and `next` hide done and dropped items and honour the current milestone (urgent and bug items always show); `--all` disables the filter |
+| `slice add <feature> --title s [--repos a,b --summary s --value s]` | Split a large feature: a lite-lane child that inherits repos, ui, priority, milestone and tags. A feature with slices is a container (no tasks.md of its own; `done` once all slices are done) |
+| `issue add "<text>" [--kind bug\|debt\|chore --from id --repos a,b --priority P --milestone m]` / `issue list` | Record a problem outside the current scope as a lite-lane item |
+| `intake <file> [--kind feature\|bug\|debt\|chore --title s]` | Turn a task file into one backlog item (refuses a file already imported) |
+| `feature drop <id> --reason s` / `feature restore <id>` | Drop an item (leaves `next`, holds its dependents) or bring it back |
+| `question add "<text>" [--feature id --to role]` / `question answer Q-n "<answer>"` / `question list [--open --feature id]` | Open questions; answering one also logs a decision |
+| `rework start <id> --reason s` / `rework close <id>` | A rework round from verifying or accepted: back to implementing on the same branches, no new PR; moving to accepted closes it |
+| `focus [id\|--clear]` / `interrupt "<text>" [--kind bug\|chore --repos a,b]` / `resume` | The active item, urgent interrupts (park, P0 item, conflict report) and coming back |
+| `milestone [set <name>\|clear]` | The current milestone; `feature set <id> milestone <m>\|none` and `tags a,b` assign items |
+| `checkpoint <id> [--note s] [--next s]` | Save a note and next step and (re)write the handoff file; stage changes, gate approvals and rework regenerate it too |
+| `pref set <key> <value>` / `pref list` / `pref rm <key>` | Learned preferences (`.specflow/memory.json`) |
+| `decision add "<q>" "<a>" [--feature id]` / `decision list [--feature id --limit n]` | Owner decisions, newest first |
+| `lesson add "<text>" [--from id]` / `lesson list [--status s]` / `lesson promote\|reject L-n` | Recurring findings proposed as rules; only the owner promotes one |
 | `repo set <name> [--test c --build c --lint c --purpose s --stack a,b --ui true\|false --confirm --deploy-order n]` | Registry of repos and their confirmed commands |
 | `feature add --title s [--priority P2 --mvp --repos a,b --summary s --value s --risk r --ui true\|false]` | New backlog feature |
 | `feature set <id> <field> <value>` / `feature link <id> <spec-dir>` / `feature activate <id>` | Edit fields, link a Spec Kit directory, point Spec Kit at the feature |
@@ -139,7 +159,7 @@ Every command accepts `--json`. `specflow help` prints this list.
 | `blocker add <id> "<text>" --kind k` / `blocker resolve <id> <B-n>` | Record and clear blockers |
 | `stage set <id> <stage> [--reason s]` | Advance one stage (entry criteria checked against real files and evidence) or move back with a reason |
 | `gate approve <id> <gate>` / `gate required <id>` | Record a human approval / list required gates |
-| `check tasks <id>` | Every task carries a registered `[repo:<name>]` tag |
+| `check tasks <id>` / `check size <id>` | Every task carries a registered `[repo:<name>]` tag / task and migration counts against the size limit (`config.slicing`, default 15 tasks and 1 migration; `feature set <id> size_waiver "<reason>"` waives it) |
 | `branches create <id>` | Create the feature branch in each affected repo (refuses dirty repos, never pushes) |
 | `verify run <id> --repo r [--kind test\|build\|lint]` | Run the confirmed command and record evidence at the repo's HEAD |
 | `evidence add <id> --kind k --result pass\|fail --note s` | Record review, security, manual, ux-review, release evidence |
@@ -151,6 +171,7 @@ Lifecycle: `proposed > defined > specified > designed > planned > implementing >
 ## Updating, uninstalling, migrating
 
 - **Update the plugin and command:** `git pull` in the repository, then in Claude `/reload-plugins` (or start a new session). Existing workspaces keep working; if a release needs a state migration, `specflow brief` and `specflow doctor` say so.
+- **0.5.0 (schema v2):** a 0.4.0 workspace keeps working unchanged (missing fields are filled in memory, nothing is rewritten on read). `specflow upgrade` lists the additions, `specflow upgrade --apply` writes them (kinds, lanes, focus, questions, `.specflow/memory.json`, slicing and lane config) without changing any existing value.
 - **Migrate a workspace after an update:** `specflow upgrade` (shows what would change), then `specflow upgrade --apply`.
 - **Uninstall from a project:** `specflow uninstall` (add `--remove-marketplace` to drop the marketplace entry too). Your `.specflow/` and `specs/` folders are untouched.
 - **Coming from 0.3 (`specflow-org`, `.sdlc/`):**
@@ -174,7 +195,7 @@ More detail on what was verified and what was not: [docs/runtime.md](docs/runtim
 
 ## Status
 
-Public beta (0.4.0). Tested on Windows with Node 26 and Spec Kit 1.2.0. The CI workflow covers Ubuntu, macOS and Windows on Node 18 and 22 but has not run yet; macOS/Linux and Node 18 are untested. Known gaps are in the [plugin README](plugins/specflow/README.md).
+Public beta (0.5.0). Tested on Windows with Node 26 and Spec Kit 1.2.0. The CI workflow covers Ubuntu, macOS and Windows on Node 18 and 22 but has not run yet; macOS/Linux and Node 18 are untested. Known gaps are in the [plugin README](plugins/specflow/README.md).
 
 ## Development
 

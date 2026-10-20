@@ -2,6 +2,23 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/). Versions follow the plugin version in `plugins/specflow/.claude-plugin/plugin.json`.
 
+## [0.5.0] - 2026-10-20
+Phase 1 of the team-model roadmap: continuity and lean context. Schema v2; a 0.4.0 workspace keeps working before `specflow upgrade --apply`.
+### Added
+- Work item kinds (`feature`, `slice`, `bug`, `debt`, `chore`), lanes (`full`, `lite`) with configurable lite gates, `milestone`, `tags`, `origin`.
+- `slice add`, the size rule at `planned` (`check size`, `size_waiver`) and container features.
+- `issue add|list`, `feature drop|restore`, `question add|answer|list`, `intake <file>`.
+- `focus`, `interrupt` (park, P0 urgent item, conflict report), `resume`, `milestone`; `next` and `status` filter by milestone and hide done/dropped items (`--all`).
+- `checkpoint` and generated handoff files (`specs/<dir>/handoff.md`, at most about 60 lines), regenerated on stage changes, gate approvals and rework; new `PreCompact` hook and a handoff refresh in the `Stop` hook.
+- `rework start|close`: review fixes stay on the same branch, no new PR.
+- `.specflow/memory.json` with `pref`, `decision` and `lesson` commands (guarded like the other state files); answered questions are logged as decisions.
+- Upgrade migration `0.5.0`; `upgrade --apply` now saves the backlog as well as the config.
+- Eval case `resume-from-handoff`.
+### Changed
+- The session brief shows Focus, Parked, Milestone, Preferences and open questions and stays under about 1,500 characters (long lines are truncated, lowest-priority lines dropped).
+- Skills: lifecycle and role contract (artifact budgets, issues instead of scope growth, questions, checkpoints), flow (focus, interrupts, no re-asking), architect (slicing), verify (rework rounds), build, product (intake).
+- The split of `backlog.json` into per-feature files was dropped from Phase 1 (the cost is in CLI output, which is now smaller).
+
 ## [0.4.0] - 2026-10-16
 Renamed to **specflow**. Names are now frozen.
 ### Changed (breaking)

@@ -39,6 +39,8 @@ After `specified` + spec gate approval -> `specflow:architect`. After acceptance
 
 **Define:** `specflow feature add --title ... --summary "<acceptance-criteria draft>" --value "<business value>" --repos a,b --priority P1 --mvp`, then `specflow stage set <id> defined`.
 
+**Intake, issues, milestones:** a user task file becomes one record with `specflow intake <file> [--kind feature|bug|debt|chore]` (refuses a second import). Problems and requests that are not part of the current item: `specflow issue add "<text>" --kind bug|debt|chore --from <id>`; triage with `specflow issue list`. Group work with `specflow feature set <id> milestone <m>` / `tags a,b` and `specflow milestone set <m>`. A feature that will be too large (about 15 tasks or more than one migration) is a candidate for `specflow slice add`.
+
 **Specify:** if the feature has no spec_dir, invoke `speckit-specify` with the feature description (it creates `specs/NNN-name`), then `specflow feature link <id> <dir>`. For an existing spec dir: `specflow feature activate <id>` first. If `[NEEDS CLARIFICATION]` markers or other ambiguity remain, run `speckit-clarify` and ask the user the questions; do not guess business rules. Then `specflow stage set <id> specified`. Present the spec summary and acceptance criteria to the human, and let the orchestrator run the `spec` gate.
 
 **Accept:** read `specs/NNN/verification.md` and the acceptance criteria in spec.md. Walk through each criterion with the user, citing the evidence (test run, review, manual check) that satisfies it; list any that lack evidence. If satisfied, hand to `specflow` for the `acceptance` gate; otherwise route back with `blocker add` / `stage set verifying --reason`.

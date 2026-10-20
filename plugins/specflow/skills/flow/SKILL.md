@@ -46,6 +46,13 @@ Hand to the role named for the stage (table in lifecycle.md). Invoke it via the 
 6. **Never skip the CLI's verdict.** If `stage set` refuses, show the listed criteria and route work to satisfy them. A failed check is reported as failed.
 7. **Release (Phase 1 is manual):** with the human, record `specflow evidence add <id> --kind release --result pass --note "..."`, approve the `acceptance` gate first, then `stage set released`; later `--kind post-release` evidence (or `--reason` waiver) and `stage set done`.
 
+## Session continuity, interrupts and memory
+- When work on an item starts, `specflow focus <id>`. On "continue" or "resume", read the brief's Focus line and the handoff file it names (`specs/<dir>/handoff.md`) first; do not re-read spec, plan or tasks until the handoff says to.
+- An urgent request ("do X first") is `specflow interrupt "<text>" --repos a,b`: it checkpoints and parks the focus item and lists conflicts (other in-flight items on the same repos, branch, dirty state). Resolve conflicts with the user; the CLI never switches branches. After the urgent item, `specflow resume`.
+- Small fixes found along the way: `specflow issue add`. A user task file: `specflow intake <file>`. One record, not two.
+- Before asking the user anything, check `specflow decision list`, `specflow pref list` and `specflow question list --open`; never re-ask. Batch the questions you must ask. Record the answers without prompting: `question answer`, `decision add`, `pref set`. A recurring review finding becomes `lesson add`; only the owner turns a lesson into a rule (`lesson promote`).
+- After a gate or a finished slice, suggest ending the session: "state is saved; a new session continues from the handoff". Run `specflow checkpoint <id> --next "..."` first.
+
 ## Answering questions
 "What features exist / what's blocked / what's next and why / what repos does it touch" are answered from `specflow status`, `specflow status <id>`, `specflow next` output only. Do not infer completion from titles, ticked tasks, or unverified code.
 

@@ -147,6 +147,10 @@ Which gates are required comes from `config.autonomy`:
 
 Destructive-command guards apply at every level.
 
+**Schema v2 (0.5.0).** Work items also carry `kind`, `lane`, `parent`, `milestone`, `tags`, `origin`, `rework`, `size_waiver`, `checkpoint` and `dropped`; the backlog carries `focus`, `parked` and the question list. A second state file, `.specflow/memory.json` (preferences, decisions, lessons), is protected like `backlog.json` and `config.json`. Items in the `lite` lane need only the gates in `config.lanes.lite.gates` and no plan.md or ux.md; a feature with slices is a container whose slices carry the work. Entry to `planned` enforces the size rule from `config.slicing`. `load()` fills missing fields in memory, so 0.4.0 files are never rewritten on read; `upgrade --apply` writes them.
+
+**Handoff.** `specflow checkpoint` renders `specs/<dir>/handoff.md` (or `.specflow/handoff/<id>.md`) from state, at most about 60 lines: next step, note, progress, repo branch/HEAD/verification freshness, open blockers and questions, recent decisions, artifact links. Stage changes, gate approvals, rework and interrupts regenerate it; the `PreCompact` hook and the `Stop` hook refresh the focus item's file. The brief points at it, so a new session resumes from the handoff instead of re-reading artifacts.
+
 **Resume:** the SessionStart hook runs `specflow brief`, which reports in-flight features, their stage, what is pending and any **staleness**: for example, a repo HEAD that differs from the SHA in the last verification, a missing branch, or `tasks.md` changed since the stage was set. The orchestrator re-checks files before trusting the recorded state. It never trusts claims from an earlier conversation.
 
 ## A7. Artifact and source-of-truth policy

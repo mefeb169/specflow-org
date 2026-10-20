@@ -27,7 +27,7 @@ Then open Claude Code in the workspace and say "set up specflow here". Updating 
 | Skills (`specflow:*`) | `specflow:flow` (orchestrator), `specflow:discover`, `specflow:product`, `specflow:ux`, `specflow:architect`, `specflow:build`, `specflow:verify`, plus the vendored `frontend-design` |
 | Agents | `repo-profiler` (one per repo, parallel, read-only), `independent-reviewer` (fresh-context code/security/UI review) |
 | `specflow` CLI | The only writer of lifecycle state. Validates every stage change against real files and evidence |
-| Hooks | Session brief; guards for state files, gates and destructive commands; validation on stop |
+| Hooks | Session brief; guards for state files, gates and destructive commands; handoff refresh on PreCompact; validation and handoff refresh on stop |
 
 **Lifecycle:** `proposed > defined > specified > designed > planned > implementing > verifying > accepted > released > done`, one step forward at a time (backward with a reason). Entry criteria are checked by the CLI: a spec without open clarifications, a plan with a Repository Impact table for multi-repo features, tasks tagged `[repo:<name>]`, passing tests at each repo's current commit, a review, and for UI features a complete `ux.md` and a `ux-review`. Human gates: `spec`, `design`, `implement`, `acceptance`, `release` (which ones are required depends on `autonomy`: `guided`, `standard`, `autonomous`).
 
@@ -37,10 +37,10 @@ Then open Claude Code in the workspace and say "set up specflow here". Updating 
 `specflow:ux` owns each UI feature's `ux.md` (flows, every screen state, copy, accessibility). *conform* mode (default for existing products) follows the design system already in code; *direction* mode (new product or an explicit redesign) runs the full `frontend-design` process and needs your approval of the visual direction. Visual checks only use tooling a repo already has (Playwright, Cypress, Storybook); otherwise the review is code-based plus a manual check, recorded honestly. Relax with `config.ux`: `{"design_gate_for_ui": false, "require_ux_review": false}`.
 
 ## CLI
-`specflow <cmd>` or `sflow <cmd>` when installed globally, otherwise `node scripts/specflow.mjs <cmd>` (the skills always use the latter through `${CLAUDE_PLUGIN_ROOT}`, so the global command is optional). `--json` everywhere: `init scan doctor validate upgrade brief status next repo feature dep blocker stage gate check branches verify evidence install uninstall`. The full command reference is in the repository README.
+`specflow <cmd>` or `sflow <cmd>` when installed globally, otherwise `node scripts/specflow.mjs <cmd>` (the skills always use the latter through `${CLAUDE_PLUGIN_ROOT}`, so the global command is optional). `--json` everywhere: `init scan doctor validate upgrade brief status next repo feature slice issue intake question dep blocker stage gate check rework focus interrupt resume milestone checkpoint pref decision lesson branches verify evidence install uninstall`. The full command reference is in the repository README.
 
 ## What is enforced, and what is not
-- **Enforced by hooks:** direct edits of `.specflow/backlog.json` / `config.json` are denied; `specflow gate approve`, `init`, `branches create`, `upgrade --apply`, `specify init`, edits to existing instruction files, destructive shell commands and shell writes to the state files require a human prompt; in `bypassPermissions`/`dontAsk` modes the high-stakes ones are denied instead.
+- **Enforced by hooks:** direct edits of `.specflow/backlog.json` / `config.json` / `memory.json` are denied; `specflow gate approve`, `init`, `branches create`, `upgrade --apply`, `specify init`, edits to existing instruction files, destructive shell commands and shell writes to the state files require a human prompt; in `bypassPermissions`/`dontAsk` modes the high-stakes ones are denied instead.
 - **Enforced by the CLI:** stage entry criteria, gate-stage matching, dependency cycles, stale-evidence detection.
 - **Advisory:** everything the skills tell the model to do. Hooks fail open if Node is missing, and cannot see every way a shell can write a file. See [docs/runtime.md](../../docs/runtime.md) and [SECURITY.md](../../SECURITY.md).
 
