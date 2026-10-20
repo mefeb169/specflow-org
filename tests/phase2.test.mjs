@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { makeFixture, cli, cliEnv, hook, w } from './make-fixture.mjs';
+import { makeFixture, cli, cliEnv, hook, sh, w } from './make-fixture.mjs';
 
 const j = (root, ...a) => { const r = cli(root, ...a, '--json'); assert.equal(r.code, 0, r.err); return JSON.parse(r.out); };
 const cf = (root) => path.join(root, '.specflow', 'config.json');
@@ -320,5 +320,105 @@ test('P2-12. guard denies PM-only actions for subagent calls and leaves the main
   assert.equal(dec(bash(fx.root, 'git status', sub)), null);
   assert.equal(dec(bash(fx.root, 'specflow checkpoint F-001 --next x', sub)), null);
   assert.equal(dec(bash(fx.root, 'git reset --hard HEAD~1', sub)), 'ask');
+  fx.cleanup();
+});
+
+// ---- G6 setup ----
+const answersFile = (root, obj) => { const f = path.join(root, `answers-${Math.random().toString(36).slice(2)}.json`); fs.writeFileSync(f, typeof obj === 'string' ? obj : JSON.stringify(obj)); return f; };
+const apply = (root, obj) => cli(root, 'setup', 'apply', '--answers', answersFile(root, obj));
+const qOf = (root, env = {}) => JSON.parse(cliEnv(root, env, 'setup', 'questions', '--json').out);
+
+test('P2-13. setup questions: order, shape and defaults derived from the workspace', () => {
+  const fx = setup();
+  const qs = qOf(fx.root, { SPECFLOW_FAKE_GRAPHIFY: '0' });
+  assert.deepEqual(qs.map((q) => q.id), ['workflow', 'autonomy', 'delivery.mode', 'delivery.target_branch', 'release.by_ai', 'testing.unit_required', 'testing.data_rules', 'models.planning', 'models.building', 'team.leads', 'team.communication', 'tools.graphify', 'milestone', 'slicing']);
+  for (const q of qs) assert.ok(q.text && q.why && Array.isArray(q.options) && 'default' in q, q.id);
+  const d = Object.fromEntries(qs.map((q) => [q.id, q.default]));
+  assert.equal(d.workflow, 'feature');
+  assert.equal(d.autonomy, 'standard');
+  assert.equal(d['delivery.mode'], 'push-pr');
+  assert.equal(d['delivery.target_branch'], cliBranch(fx.be), 'both repos sit on the same branch');
+  assert.equal(d['release.by_ai'], 'no');
+  assert.equal(d['testing.unit_required'], 'yes');
+  assert.equal(d['models.planning'], 'opus');
+  assert.equal(d['models.building'], 'sonnet');
+  assert.equal(d['team.leads'], 'no');
+  assert.equal(d['team.communication'], 'short');
+  assert.equal(d['tools.graphify'], 'no');
+  assert.equal(d.milestone, null);
+  assert.equal(d.slicing, '15 tasks / 1 migration');
+  assert.equal(qOf(fx.root, { SPECFLOW_FAKE_GRAPHIFY: '1' }).find((q) => q.id === 'tools.graphify').default, 'yes');
+  sh(fx.fe, 'git', ['switch', '-q', '-c', 'other']);
+  assert.equal(qOf(fx.root).find((q) => q.id === 'delivery.target_branch').default, null, 'repos disagree');
+  fx.cleanup();
+});
+
+const cliBranch = (dir) => sh(dir, 'git', ['rev-parse', '--abbrev-ref', 'HEAD']);
+
+test('P2-14. setup questions: the milestone hint depends on backlog size', () => {
+  const fx = setup();
+  for (let i = 0; i < 31; i++) addF(fx.root, `Item ${i}`);
+  const q = qOf(fx.root).find((x) => x.id === 'milestone');
+  assert.match(q.why, /31 items are open/);
+  fx.cleanup();
+});
+
+test('P2-15. setup apply: partial answers are written, logged as decisions and shown by status', () => {
+  const fx = setup();
+  const r = ok(apply(fx.root, { workflow: 'task', 'delivery.mode': 'commit', 'delivery.target_branch': 'develop', 'release.by_ai': 'yes', 'testing.unit_required': false, 'testing.data_rules': 'use yopmail.com', 'models.building': 'haiku', 'models.planning': 'sonnet', 'team.communication': 'detailed', 'tools.graphify': 'yes', milestone: 'M1', slicing: '10 / 2', autonomy: 'guided', 'team.leads': 'yes' }));
+  assert.match(r.out, /Applied 14/);
+  const c = readCfg(fx.root);
+  assert.equal(c.team.workflow, 'task');
+  assert.equal(c.autonomy, 'guided');
+  assert.deepEqual(c.delivery, { mode: 'commit', target_branch: 'develop', pr_tool: 'gh' });
+  assert.equal(c.release.by_ai, true);
+  assert.deepEqual(c.testing, { unit_required: false, data_rules: 'use yopmail.com' });
+  assert.equal(c.tools.graphify, true);
+  assert.equal(c.current_milestone, 'M1');
+  assert.deepEqual([c.slicing.max_tasks, c.slicing.max_migrations], [10, 2]);
+  assert.equal(c.team.communication, 'detailed');
+  assert.equal(c.team.roles.builder.model, 'haiku');
+  assert.equal(c.team.roles.verifier.model, 'haiku');
+  assert.equal(c.team.roles.architect.model, 'sonnet');
+  assert.equal(c.team.roles.reviewer.model, 'sonnet');
+  assert.equal(c.team.roles.lead.enabled, true);
+  assert.deepEqual(c.team.leads.map((l) => l.name).sort(), ['backend', 'frontend']);
+  const decs = j(fx.root, 'decision', 'list');
+  assert.equal(decs.length, 14);
+  assert.ok(decs.every((d) => d.scope === 'project' && d.by === 'user'));
+  assert.ok(decs.some((d) => d.question === 'Should the AI team also release and deploy?' && d.answer === 'yes'));
+  const st = j(fx.root, 'setup', 'status');
+  assert.equal(st.filter((x) => x.answered).length, 14);
+  assert.equal(JSON.parse(cli(fx.root, 'validate', '--json').out).ok, true);
+  fx.cleanup();
+});
+
+test('P2-16. setup apply: a role locked by `team set` keeps its model; partial apply leaves the rest alone', () => {
+  const fx = setup();
+  ok(cli(fx.root, 'team', 'set', 'builder', '--model', 'opus'));
+  ok(apply(fx.root, { 'models.building': 'haiku' }));
+  const c = readCfg(fx.root);
+  assert.equal(c.team.roles.builder.model, 'opus');
+  assert.equal(c.team.roles.verifier.model, 'haiku');
+  assert.equal(c.autonomy, 'standard');
+  assert.equal(j(fx.root, 'setup', 'status').filter((x) => x.answered).length, 1);
+  fx.cleanup();
+});
+
+test('P2-17. setup apply: unknown ids and invalid values are rejected and nothing is written', () => {
+  const fx = setup();
+  const before = fs.readFileSync(cf(fx.root), 'utf8');
+  const r = apply(fx.root, { workflow: 'task', nonsense: 1, 'delivery.mode': 'yolo', slicing: 'big', 'models.planning': 'gpt-5' });
+  bad(r, /nothing written/);
+  assert.match(r.err, /unknown question id "nonsense"/);
+  assert.match(r.err, /delivery\.mode: must be one of/);
+  assert.match(r.err, /slicing/);
+  assert.match(r.err, /models\.planning/);
+  assert.equal(fs.readFileSync(cf(fx.root), 'utf8'), before);
+  assert.equal(j(fx.root, 'decision', 'list').length, 0);
+  bad(apply(fx.root, '{not json'), /not valid JSON/);
+  bad(cli(fx.root, 'setup', 'apply', '--answers', path.join(fx.root, 'missing.json')), /not found/);
+  bad(cli(fx.root, 'setup', 'apply'), /usage/);
+  ok(apply(fx.root, {}));
   fx.cleanup();
 });
