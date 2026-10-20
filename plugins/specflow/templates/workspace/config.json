@@ -1,9 +1,12 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "framework_version": "0.1.0",
   "workspace": { "name": "", "root_is_repo": false },
   "autonomy": "standard",
   "branch_pattern": "{spec_slug}",
+  "current_milestone": null,
+  "slicing": { "max_tasks": 15, "max_migrations": 1 },
+  "lanes": { "lite": { "gates": ["acceptance", "release"] } },
   "repos": [],
   "speckit": { "version": null, "integration": null, "location": ".", "skills": [] },
   "guards": {

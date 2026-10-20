@@ -90,3 +90,34 @@ test('P1-4. guard protects memory.json like backlog.json and config.json', () =>
   assert.equal(dec(sh1), 'ask');
   fx.cleanup();
 });
+
+test('P1-5. upgrade: v1 dry run lists changes, --apply is additive and leaves validate clean', () => {
+  const fx = setup();
+  const a = add(fx.root, 'One', '--priority', 'P1');
+  downgradeToV1(fx.root);
+  const c = readCfg(fx.root); c.autonomy = 'guided'; c.guards.extra_bash_patterns = ['mine']; fs.writeFileSync(cf(fx.root), JSON.stringify(c));
+  const beforeBl = fs.readFileSync(bl(fx.root), 'utf8');
+  const dry = j(fx.root, 'upgrade');
+  const step = dry.migrations.find((m) => m.to === '0.5.0');
+  assert.ok(step.changes.some((x) => /backlog.schema_version = 2/.test(x)));
+  assert.ok(step.changes.some((x) => /1 feature record/.test(x)));
+  assert.ok(step.changes.some((x) => /memory\.json/.test(x)));
+  assert.equal(fs.readFileSync(bl(fx.root), 'utf8'), beforeBl, 'dry run writes nothing');
+  assert.ok(!fs.existsSync(path.join(fx.root, '.specflow', 'memory.json')));
+
+  ok(cli(fx.root, 'upgrade', '--apply'));
+  const b = readBacklog(fx.root);
+  assert.equal(b.schema_version, 2);
+  assert.equal(b.features[0].priority, 'P1');
+  assert.equal(b.features[0].kind, 'feature');
+  assert.equal(b.next_question, 1);
+  const cfg = readCfg(fx.root);
+  assert.equal(cfg.schema_version, 2);
+  assert.equal(cfg.autonomy, 'guided');
+  assert.deepEqual(cfg.guards.extra_bash_patterns, ['mine']);
+  assert.deepEqual(cfg.slicing, { max_tasks: 15, max_migrations: 1 });
+  assert.ok(fs.existsSync(path.join(fx.root, '.specflow', 'memory.json')));
+  assert.equal(j(fx.root, 'validate').ok, true);
+  assert.ok(a);
+  fx.cleanup();
+});
