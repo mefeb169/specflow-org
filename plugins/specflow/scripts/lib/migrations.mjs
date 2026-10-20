@@ -3,6 +3,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { LITE_GATES_DEFAULT, SLICING_DEFAULTS, UX_DEFAULTS } from './lifecycle.mjs';
+import { fillTeamDefaults } from './team.mjs';
 import { LEGACY_STATE_DIR, STATE_DIR, UserError, paths, readJson } from './state.mjs';
 
 const gitignorePath = (ctx) => path.join(ctx.root, '.gitignore');
@@ -88,5 +89,14 @@ export const MIGRATIONS = [
       ctx.config.lanes ??= { lite: { gates: [...LITE_GATES_DEFAULT] } };
       if (!fs.existsSync(paths(ctx.root).memory)) ctx.saveMemory();
     },
+  },
+  {
+    to: '0.6.0',
+    describe: 'Team model: config.team (roles, models, leads), delivery, release, testing, tools',
+    plan(ctx) {
+      const keys = ['team', 'delivery', 'release', 'testing', 'tools'].filter((k) => ctx.config[k] === undefined);
+      return keys.length ? [`config: add ${keys.join(', ')} (defaults; ux role enabled when a repo has ui: true)`] : [];
+    },
+    apply(ctx) { fillTeamDefaults(ctx); },
   },
 ];

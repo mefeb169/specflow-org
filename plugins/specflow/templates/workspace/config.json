@@ -1,14 +1,86 @@
 {
   "schema_version": 2,
   "framework_version": "0.1.0",
-  "workspace": { "name": "", "root_is_repo": false },
+  "workspace": {
+    "name": "",
+    "root_is_repo": false
+  },
   "autonomy": "standard",
   "branch_pattern": "{spec_slug}",
   "current_milestone": null,
-  "slicing": { "max_tasks": 15, "max_migrations": 1 },
-  "lanes": { "lite": { "gates": ["acceptance", "release"] } },
+  "slicing": {
+    "max_tasks": 15,
+    "max_migrations": 1
+  },
+  "lanes": {
+    "lite": {
+      "gates": [
+        "acceptance",
+        "release"
+      ]
+    }
+  },
+  "team": {
+    "roles": {
+      "product": {
+        "enabled": true,
+        "model": "opus"
+      },
+      "architect": {
+        "enabled": true,
+        "model": "opus"
+      },
+      "ux": {
+        "model": "opus"
+      },
+      "lead": {
+        "enabled": false,
+        "model": "opus"
+      },
+      "builder": {
+        "enabled": true,
+        "model": "sonnet"
+      },
+      "verifier": {
+        "enabled": true,
+        "model": "sonnet"
+      },
+      "reviewer": {
+        "enabled": true,
+        "model": "opus"
+      },
+      "profiler": {
+        "enabled": true,
+        "model": "haiku"
+      }
+    },
+    "leads": [],
+    "locked": [],
+    "communication": "short",
+    "workflow": "feature"
+  },
+  "delivery": {
+    "mode": "push-pr",
+    "target_branch": null,
+    "pr_tool": "gh"
+  },
+  "release": {
+    "by_ai": false
+  },
+  "testing": {
+    "unit_required": true,
+    "data_rules": ""
+  },
+  "tools": {
+    "graphify": false
+  },
   "repos": [],
-  "speckit": { "version": null, "integration": null, "location": ".", "skills": [] },
+  "speckit": {
+    "version": null,
+    "integration": null,
+    "location": ".",
+    "skills": []
+  },
   "guards": {
     "source_edit_outside_implementing": "ask",
     "deny_in_unattended_modes": true,

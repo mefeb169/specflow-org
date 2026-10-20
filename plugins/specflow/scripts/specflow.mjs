@@ -13,6 +13,7 @@ import { cmdNext, cmdStatus, cmdValidate } from './commands/views.mjs';
 import { cmdIntake, cmdIssue, cmdQuestion, cmdSlice } from './commands/work.mjs';
 import { cmdCheckpoint, cmdFocus, cmdInterrupt, cmdMilestone, cmdResume, cmdRework } from './commands/flow.mjs';
 import { cmdDecision, cmdLesson, cmdPref } from './commands/memory.mjs';
+import { cmdTeam } from './commands/team.mjs';
 import { cmdUpgrade } from './commands/upgrade.mjs';
 import { cmdInstall, cmdUninstall } from './commands/install.mjs';
 
@@ -36,6 +37,8 @@ const HELP = `specflow <command>   (alias: sflow)
   pref set <key> <value> [--by role] | pref list | pref rm <key>
   decision add "<question>" "<answer>" [--feature id --by who] | decision list [--feature id --limit n]
   lesson add "<text>" [--from id] | lesson list [--status s] | lesson promote|reject L-n
+  team [show] | team set <role> [--model m --enabled true|false] | team set --communication short|normal|detailed | team set --workflow feature|task
+  team lead add <name> --repos a,b | team lead rm <name> | team generate
   branches create <id>  verify run <id> --repo r [--kind k]  evidence add <id> --kind k --result r --note s
 All commands accept --json.`;
 
@@ -63,7 +66,7 @@ function main() {
     scan: cmdScan,
     doctor: (a, c) => { const d = doctor(c); emit(d, renderDoctor(d)); if (d.some((x) => !x.ok && x.name === 'state validation')) process.exitCode = 1; },
     repo: cmdRepo, feature: cmdFeature, dep: cmdDep, blocker: cmdBlocker, stage: cmdStage, gate: cmdGate, check: cmdCheck,
-    branches: cmdBranches, verify: cmdVerify, evidence: cmdEvidence, status: cmdStatus, next: cmdNext, validate: cmdValidate, upgrade: cmdUpgrade, slice: cmdSlice, issue: cmdIssue, question: cmdQuestion, intake: cmdIntake, pref: cmdPref, decision: cmdDecision, lesson: cmdLesson, checkpoint: cmdCheckpoint, rework: cmdRework, focus: cmdFocus, interrupt: cmdInterrupt, resume: cmdResume, milestone: cmdMilestone,
+    branches: cmdBranches, verify: cmdVerify, evidence: cmdEvidence, status: cmdStatus, next: cmdNext, validate: cmdValidate, upgrade: cmdUpgrade, slice: cmdSlice, issue: cmdIssue, question: cmdQuestion, intake: cmdIntake, pref: cmdPref, decision: cmdDecision, lesson: cmdLesson, checkpoint: cmdCheckpoint, rework: cmdRework, focus: cmdFocus, interrupt: cmdInterrupt, resume: cmdResume, milestone: cmdMilestone, team: cmdTeam,
   };
   const fn = commands[cmd];
   if (!fn) throw new UserError(`Unknown command "${cmd}". Run \`specflow help\`.`);
