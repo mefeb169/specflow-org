@@ -287,3 +287,38 @@ test('P2-11. dispatch prompt carries rework round, role questions and stays unde
   assert.match(disp(fx.root, id).prompt, /rework round 1/);
   fx.cleanup();
 });
+
+// ---- G5 guard ----
+const bash = (root, command, extra = {}) => hook('pre-tool-use', root, { tool_name: 'Bash', tool_input: { command }, ...extra });
+
+test('P2-12. guard denies PM-only actions for subagent calls and leaves the main session unchanged', () => {
+  const fx = setup();
+  const sub = { agent_id: 'agent-1', agent_type: 'specflow:builder' };
+  const pmOnly = [
+    'specflow gate approve F-001 spec',
+    'node "/p/specflow.mjs" gate approve F-001 spec',
+    'sflow init',
+    'specflow upgrade --apply',
+    'specflow install --scope project',
+    'specflow uninstall',
+    'specify init --here',
+    'git push origin feature',
+    'git -C backend push',
+    'gh pr create --fill',
+    'gh pr merge 3',
+  ];
+  for (const cmd of pmOnly) {
+    const d = bash(fx.root, cmd, sub);
+    assert.equal(dec(d), 'deny', cmd);
+    assert.match(d.json.hookSpecificOutput.permissionDecisionReason, /Only the specflow PM \(main session\)/);
+  }
+  // Main session: the existing guard is unchanged (gate approve asks, push asks, nothing is denied outright).
+  assert.equal(dec(bash(fx.root, 'specflow gate approve F-001 spec')), 'ask');
+  assert.equal(dec(bash(fx.root, 'git push origin x')), 'ask');
+  assert.equal(dec(bash(fx.root, 'gh pr create --fill')), null, 'gh pr create was never guarded for the main session');
+  // Subagents keep the normal guard for everything else.
+  assert.equal(dec(bash(fx.root, 'git status', sub)), null);
+  assert.equal(dec(bash(fx.root, 'specflow checkpoint F-001 --next x', sub)), null);
+  assert.equal(dec(bash(fx.root, 'git reset --hard HEAD~1', sub)), 'ask');
+  fx.cleanup();
+});

@@ -11,6 +11,15 @@ const MARKERS = [['<!-- specflow:begin -->', '<!-- specflow:end -->'], ['<!-- sd
 const STATE_DIRS = ['.specflow', '.sdlc'];
 const NON_SOURCE = ['specs', ...STATE_DIRS, '.specify', '.claude'];
 
+// Actions only the PM (main session) may take. Hook input carries agent_id when the call comes from inside a subagent.
+const PM_ONLY = [
+  /(?:specflow|sflow|sdlc)(?:\.mjs)?["']?\s+(?:gate\s+approve|init|upgrade\s+--apply|install|uninstall)\b/i,
+  /\bspecify\s+init\b/i,
+  /\bgit\s+(?:-C\s+\S+\s+)?push\b/i,
+  /\bgh\s+pr\s+(?:create|merge)\b/i,
+];
+const PM_ONLY_REASON = 'Only the specflow PM (main session) may do this; return it to the PM in your report.';
+
 const deny = (reason) => ({ decision: 'deny', reason });
 const ask = (reason) => ({ decision: 'ask', reason });
 // Permission modes in which a hook-forced "ask" may never reach a human.
@@ -56,6 +65,7 @@ export function decide({ root, config, backlog, input, cwd }) {
   if (tool === 'Bash') {
     const cmd = stripCatHeredocBodies(String(ti.command || ''));
     // The CLI is invoked as specflow, sflow, specflow.mjs, or (legacy) sdlc / sdlc.mjs.
+    if (input.agent_id && PM_ONLY.some((re) => re.test(cmd))) return deny(PM_ONLY_REASON);
     const g = cmd.match(/(?:specflow|sflow|sdlc)(?:\.mjs)?["']?\s+gate\s+approve\s+(\S+)\s+(\S+)/i);
     if (g || /(?:specflow|sflow|sdlc)(?:\.mjs)?["']?\s+gate\s+approve\b/i.test(cmd)) {
       return gate(g ? `Human approval of gate "${g[2]}" for ${g[1]}. Only approve if you reviewed the artifacts.` : 'Human approval of a lifecycle gate.');
