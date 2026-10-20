@@ -136,3 +136,33 @@ test('P2-5. migration chains from 0.4.0 through 0.5.0 to 0.6.0', () => {
   assert.equal(after.framework_version, '0.6.0');
   fx.cleanup();
 });
+
+const AGENTS = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')), '..', 'plugins', 'specflow', 'agents');
+const frontmatter = (file) => {
+  const t = fs.readFileSync(file, 'utf8');
+  const m = t.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
+  assert.ok(m, `${file}: frontmatter`);
+  const fm = Object.fromEntries(m[1].split('\n').map((l) => [l.slice(0, l.indexOf(':')), l.slice(l.indexOf(':') + 1).trim()]));
+  return { fm, body: m[2] };
+};
+
+test('P2-6. role agents: name, default model, tools (Agent only for lead and verifier), contract present', () => {
+  const want = { product: 'opus', architect: 'opus', ux: 'opus', lead: 'opus', builder: 'sonnet', verifier: 'sonnet' };
+  for (const [name, model] of Object.entries(want)) {
+    const { fm, body } = frontmatter(path.join(AGENTS, `${name}.md`));
+    assert.equal(fm.name, name);
+    assert.equal(fm.model, model);
+    assert.match(fm.description, /dispatched by the specflow PM; not for direct use/);
+    const tools = fm.tools.split(',').map((x) => x.trim());
+    assert.equal(tools.includes('Agent'), name === 'lead' || name === 'verifier', `${name} tools`);
+    assert.match(body, /skills\/[a-z]+\/SKILL\.md/);
+    assert.match(body, /_shared\/role-contract\.md/);
+    assert.match(body, /You never talk to the user/);
+    assert.match(body, /specflow question add/);
+    assert.match(body, /specflow checkpoint/);
+    assert.ok(body.split('\n').length < 40, `${name} body length`);
+  }
+  assert.match(frontmatter(path.join(AGENTS, 'lead.md')).body, /lead-<name>\.md/);
+  assert.match(frontmatter(path.join(AGENTS, 'builder.md')).body, /ONE repo per dispatch/);
+  for (const keep of ['independent-reviewer', 'repo-profiler']) assert.ok(fs.existsSync(path.join(AGENTS, `${keep}.md`)));
+});
