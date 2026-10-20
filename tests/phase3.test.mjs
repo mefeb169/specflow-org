@@ -239,6 +239,11 @@ test('P3-8. guard: deliver asks in the main session, is denied unattended and fo
   assert.equal(dec(run('specflow deliver status F-001', { agent_id: 'a1' })), null);
   assert.equal(dec(run('specflow deliver status F-001')), null);
   assert.equal(dec(run('specflow deliver F-001 --dry-run')), null);
+  // --dry-run only exempts its own segment, and never from inside a comment.
+  assert.equal(dec(run('specflow deliver F-001 # --dry-run')), 'ask');
+  assert.equal(dec(run('specflow deliver F-001; echo --dry-run')), 'ask');
+  assert.equal(dec(run('specflow deliver F-001 --dry-run && specflow deliver F-001')), 'ask');
+  assert.equal(dec(run('specflow deliver F-001 # --dry-run', { agent_id: 'a1' })), 'deny');
   t.cleanup();
 });
 

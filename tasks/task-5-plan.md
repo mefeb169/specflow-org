@@ -663,3 +663,11 @@ Migration `0.7.0`: extends `release` with `steps: []`, `post_release: []`, `requ
 2. `claude plugin validate plugins/specflow` passes.
 3. README, HELP, skills and agents agree; version 0.7.0 everywhere.
 4. Implementation Log: append `### Phase 3 (0.7.0)`.
+
+## Review of Phase 3 (Opus, 2026-10-20)
+- Full suite re-run: 106/106 pass. Read the deliver, release and guard changes against Part H; the 8 recorded deviations are accepted (deviation 3 is a correct fix to the spec).
+- Checked: `git push` is never forced; PRs are reused when OPEN and never reopened when MERGED/CLOSED; preconditions refuse stale evidence, open rework rounds and blockers; release steps needing approval stop the run.
+- Fixed in review: the guard exempted `deliver` as a dry run whenever `--dry-run` appeared anywhere later on the command line, including inside a shell comment (`specflow deliver F-1 # --dry-run` would have pushed without a prompt). The exemption is now judged per shell segment with comments stripped; four test assertions added (P3-8).
+- Smoke test on the copy of Wali's state (Wali untouched): upgrade 0.6.0 -> 0.7.0 applied, `validate` clean; `deliver F-005 --dry-run` refuses with the right reasons; `release plan F-005` writes the plan with the migration warning.
+- Not verified: real `gh` output (the "no pull request found" detection is a regex on gh's stderr), guard prompts and `agent_id` in a live session, Node 18, macOS/Linux.
+- Stopped after Phase 3.

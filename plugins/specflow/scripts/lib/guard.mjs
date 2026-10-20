@@ -12,8 +12,15 @@ const STATE_DIRS = ['.specflow', '.sdlc'];
 const NON_SOURCE = ['specs', ...STATE_DIRS, '.specify', '.claude'];
 
 // Actions only the PM (main session) may take. Hook input carries agent_id when the call comes from inside a subagent.
-// `deliver status` and `deliver ... --dry-run` only read, so they are not guarded.
-const DELIVER = /(?:specflow|sflow|sdlc)(?:\.mjs)?["']?\s+deliver\b(?!\s+status\b)(?![^\n]*--dry-run)/i;
+// `deliver status` and `deliver ... --dry-run` only read, so they are not guarded. The dry-run exemption is judged per
+// shell segment with comments removed, so `deliver F-1 # --dry-run` or `deliver F-1; echo --dry-run` is still guarded.
+const DELIVER_CALL = /(?:specflow|sflow|sdlc)(?:\.mjs)?["']?\s+deliver\b(?!\s+status\b)/i;
+const DELIVER = {
+  test: (cmd) => cmd.split(/[;&|\n]/).some((seg) => {
+    const code = seg.replace(/(^|\s)#.*$/, '');
+    return DELIVER_CALL.test(code) && !/(^|\s)--dry-run\b/.test(code);
+  }),
+};
 const RELEASE = /(?:specflow|sflow|sdlc)(?:\.mjs)?["']?\s+release\s+(run|verify)\b/i;
 const PM_ONLY = [
   DELIVER,
