@@ -377,6 +377,53 @@ Docs: README command reference and "Daily use" rows (interrupt, resume, checkpoi
 - Noted for later (not changed): with no current milestone, `status` still lists every non-done item (126 rows on Wali). Setting a milestone fixes it; Phase 2's setup interview should ask for one, or `status` could collapse `proposed` items by default.
 - Stopped after Phase 1 as the owner asked.
 
+### Phase 2 (0.6.0), branch `task-5`
+
+**Commits (hash, subject)**
+- d3d2441 feat: team configuration, roles, leads and 0.6.0 migration (G2)
+- 9859901 feat: role agents with model policy and subagent contract (G3)
+- 0054ccf feat: dispatch packets for the PM (G4)
+- e0ea0d7 feat: guard denies PM-only actions from subagents (G5)
+- 38ee1e6 feat: setup interview as data (questions, apply, status) (G6)
+- 5df4103 feat: setup skill, PM-loop flow, subagent sections, lifecycle team table (G7)
+- 9afdeed docs: team model docs, lean status, pm-dispatches-role eval; version 0.6.0 (G8)
+- (this log is committed separately after G8)
+
+**Files changed per step** (under `plugins/specflow/` unless noted)
+- G2: `scripts/lib/team.mjs` (new: roles, `teamCfg` and the delivery/release/testing/tools helpers, `fillTeamDefaults`, `validateTeam`), `scripts/commands/team.mjs` (new), `scripts/lib/migrations.mjs` (0.6.0), `scripts/lib/validate.mjs`, `scripts/specflow.mjs`, `templates/workspace/config.json`, `tests/phase2.test.mjs` (new, P2-1..5).
+- G3: `agents/{product,architect,ux,lead,builder,verifier}.md` (new); test P2-6.
+- G4: `scripts/lib/dispatch.mjs`, `scripts/commands/dispatch.mjs` (new), `scripts/specflow.mjs`; tests P2-7..11.
+- G5: `scripts/lib/guard.mjs`; test P2-12.
+- G6: `scripts/lib/setup.mjs`, `scripts/commands/setup.mjs` (new), `scripts/specflow.mjs`; tests P2-13..17.
+- G7: `skills/setup/SKILL.md` (new), `skills/flow/SKILL.md` (rewritten, 5.7 KB), "When dispatched as a subagent" sections in product, ux, architect, build, verify, discover, `skills/_shared/{lifecycle,role-contract}.md`, `templates/workspace/claude-md-block.md`; test P2-18.
+- G8: `scripts/commands/views.mjs` (lean status), version 0.6.0 in `.claude-plugin/plugin.json` and root `package.json`, `README.md`, `plugins/specflow/README.md`, `CHANGELOG.md`, `docs/architecture.md`, `evals/README.md`, `evals/pm-dispatches-role/*`, `tests/{compat,legacy}.test.mjs` (version string), tests P2-19..20.
+
+**Existing tests adjusted:** `tests/compat.test.mjs` and `tests/legacy.test.mjs` asserted `framework_version === '0.5.0'` after `upgrade --apply`; now `'0.6.0'`. Nothing else changed.
+
+**Deviations / decisions where the spec was open**
+1. Setup has 14 question ids, not 12: G6 items 6 and 7 each carry two answers, so they are `testing.unit_required` + `testing.data_rules` and `models.planning` + `models.building`. Answers file is a flat JSON map keyed by id (`{"delivery.mode": "commit"}`); booleans accept yes/no/true/false; `slicing` accepts `"15 / 1"` or `{max_tasks, max_migrations}`; `delivery.target_branch` and `milestone` accept `none`.
+2. `models.planning/building` answers skip roles listed in `team.locked` (a role set by hand with `team set` keeps its model). `team.leads: yes` creates one lead per registered repo when none exist; `no` disables the lead role but keeps the leads list.
+3. `team set` and `team lead add|rm` write the full effective team into `config.team` (materialized); before that, `teamCfg` derives defaults so a 0.5.0 config is not rewritten on read. The `ux` role's `enabled` is left unset in the init template so it follows the repos until the migration, `team generate` or `team set` materializes it. When leads exist and `lead.enabled` is unset, the lead role counts as enabled.
+4. Lead routing: the packet names `lead` only when the lead role is enabled and EVERY repo of the item belongs to a lead. With repos spread over several leads, `--repo` is required and picks that repo's lead. A dispatch for a feature that is a container (has slices) at planned/implementing is refused ("dispatch one of its slices").
+5. `dispatch` at `released` returns `role: pm` (agent/model null) because no team role owns that stage; `--role` accepts any of the 8 roles. When a disabled role is covered, `role` is the covering role, `requested_role` the original and `covered_by` names it. The prompt shows at most 4 open questions (80 chars each) plus a "+N more" hint so the closing lines (update level, contract) are never cut by the 1,200-character cap.
+6. `dispatch` writes to the backlog (history entry `dispatch <role>`, event type `link`) although it is otherwise deterministic.
+7. Guard: PM-only patterns apply only when `agent_id` is present and return `deny`; the main-session behavior is untouched (so `gh pr create` is still not guarded for the main session, as before).
+8. `status` lean rule: the summary line uses ASCII `...` instead of the ellipsis character; it also applies to `--json` output (rows hidden there too). "Open" counts non-done, non-dropped items.
+9. Agent descriptions are quoted YAML strings (the colon-free spec wording is followed; role summaries use " - "). Role skills' headings contract gained one trailing section; `role-contract.md` says so.
+10. The `pm-dispatches-role` eval is not run (it calls the model and needs Bash and Agent, so not runnable on Windows).
+
+**Test results**
+- Final `npm test` on commit 9afdeed: tests 85, pass 85, fail 0 (65 from Phase 1 + 20 new in `tests/phase2.test.mjs`, P2-1 .. P2-20). `npm test` was green before every commit (70, 71, 76, 77, 82, 83, 85 tests).
+- New tests cover: team defaults and ux derivation, set/lock/generate, validation, lead add/rm and the 4+ repo suggestion, migration 0.6.0 from 0.5.0 and chained from 0.4.0, agent frontmatter and contract, dispatch routing for every stage, ux before architect, lead vs builder, `--repo` rule and deploy order, disabled-role fallbacks, refusal for done/dropped, prompt cap, guard with and without `agent_id`, setup questions/defaults, apply partial/invalid/decision logging/locked roles, status, skills and docs presence, lean status, versions and HELP.
+
+**`claude plugin validate plugins/specflow`:** run after G3, G7 and G8; output: "Validating plugin manifest ... plugin.json  Validation passed".
+
+**Open issues / not done**
+- Not exercised in a live Claude Code session: that agent `model` overrides via the Agent tool, that `agent_id` really arrives on subagent hook calls, and that the PM loop in the flow skill dispatches correctly. These rest on the G1 platform facts; only the CLI, hook logic (with a synthetic `agent_id`) and file contents are tested.
+- `pm-dispatches-role` eval not run.
+- Setup `tools.graphify` detection checks PATH only (stubbed in tests by `SPECFLOW_FAKE_GRAPHIFY`); `delivery`, `release`, `testing` and `tools` are recorded but nothing consumes them yet (Phase 3/4).
+- Not exercised: Node 18, macOS/Linux. Full suite takes roughly 100 s here.
+
 ---
 
 # Part G: Phase 2 build spec — 0.6.0 "Team model"
