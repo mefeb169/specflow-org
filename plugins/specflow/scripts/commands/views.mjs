@@ -11,6 +11,8 @@ export function cmdStatus(args, ctx) {
       `${d.id} ${d.title} [${d.stage}]${d.blocked ? ' BLOCKED' : ''}  priority ${d.priority}  repos: ${d.repos.join(', ')}`,
       `spec: ${d.spec_dir || '(none)'}   branches: ${JSON.stringify(d.branches)}`,
       `gates required: ${d.required_gates.join(', ') || '-'} | pending: ${d.pending_gates.join(', ') || '-'}`,
+      d.parent ? `slice of ${d.parent} | lane ${d.lane}` : d.lane === 'lite' ? `lane lite (${d.kind})` : '',
+      ...d.slices.map((s) => `slice ${s.id} [${s.stage}] ${s.title}`),
       d.ui ? `ui: yes | ux.md: ${d.ux.complete ? 'complete' : `incomplete (${d.ux.failures.length})`}` : '',
       ...Object.entries(d.ui_evidence).map(([r, u]) => `ui evidence ${r}: design system ${u.design_system.length ? u.design_system.join(', ') : 'NONE found'}; visual tools: ${u.visual_test_tools.join(', ') || 'none'}`),
       d.tasks ? `tasks: ${d.tasks.done}/${d.tasks.total}` : '',

@@ -10,6 +10,7 @@ import { cmdBlocker, cmdDep, cmdFeature, cmdRepo } from './commands/feature.mjs'
 import { cmdBranches, cmdCheck, cmdGate, cmdStage } from './commands/stage.mjs';
 import { cmdEvidence, cmdVerify } from './commands/verify.mjs';
 import { cmdNext, cmdStatus, cmdValidate } from './commands/views.mjs';
+import { cmdSlice } from './commands/work.mjs';
 import { cmdUpgrade } from './commands/upgrade.mjs';
 import { cmdInstall, cmdUninstall } from './commands/install.mjs';
 
@@ -19,7 +20,9 @@ const HELP = `specflow <command>   (alias: sflow)
   --version
   repo set <name> [--test c --build c --lint c --purpose s --stack a,b --ui true|false --confirm --deploy-order n]
   feature add --title s [--priority P2 --mvp --repos a,b --summary s --value s --risk low|med|high --ui true|false]
-  feature set|link|activate <id> ...   dep add|rm <id> <dep> --type t   blocker add|resolve <id> ...
+  feature set|link|activate <id> ...   slice add <feature> --title s [--repos a,b --summary s --value s]
+  check tasks|size <id>   feature set <id> lane full|lite | size_waiver "<reason>"
+    dep add|rm <id> <dep> --type t   blocker add|resolve <id> ...
   stage set <id> <stage> [--reason s]  gate approve|required <id> [gate]  check tasks <id>
   branches create <id>  verify run <id> --repo r [--kind k]  evidence add <id> --kind k --result r --note s
 All commands accept --json.`;
@@ -48,7 +51,7 @@ function main() {
     scan: cmdScan,
     doctor: (a, c) => { const d = doctor(c); emit(d, renderDoctor(d)); if (d.some((x) => !x.ok && x.name === 'state validation')) process.exitCode = 1; },
     repo: cmdRepo, feature: cmdFeature, dep: cmdDep, blocker: cmdBlocker, stage: cmdStage, gate: cmdGate, check: cmdCheck,
-    branches: cmdBranches, verify: cmdVerify, evidence: cmdEvidence, status: cmdStatus, next: cmdNext, validate: cmdValidate, upgrade: cmdUpgrade,
+    branches: cmdBranches, verify: cmdVerify, evidence: cmdEvidence, status: cmdStatus, next: cmdNext, validate: cmdValidate, upgrade: cmdUpgrade, slice: cmdSlice,
   };
   const fn = commands[cmd];
   if (!fn) throw new UserError(`Unknown command "${cmd}". Run \`specflow help\`.`);

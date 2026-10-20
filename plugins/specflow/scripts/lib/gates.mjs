@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { AUTONOMY_GATES, DEP_MIN_STAGE, GATES, GATE_BEFORE, GATE_STAGE, STAGES, UX_SECTIONS, stageIdx } from './lifecycle.mjs';
-import { isUi, liteGates, repoDir, specDirAbs, uxConfig } from './state.mjs';
+import { isContainer, isUi, liteGates, repoDir, slicingCfg, specDirAbs, uxConfig } from './state.mjs';
 import { headSha, isGitRepo } from './git.mjs';
 import { latestEvidence, readEvidence } from './verify.mjs';
 
@@ -39,6 +39,22 @@ export function checkTasks(ctx, f) {
     }
   });
   return { total: tasks.length, done: tasks.filter((t) => t.done).length, perRepo, errors };
+}
+
+/** Task and migration-task counts from tasks.md (null when it does not exist). */
+export function sizeCounts(ctx, f) {
+  const tasks = parseTasks(ctx, f);
+  if (tasks === null) return null;
+  return { tasks: tasks.length, migrations: tasks.filter((t) => /migrat/i.test(t.text)).length };
+}
+
+/** Failure message when a work item exceeds the slicing limits and has no waiver (null = fine). */
+export function sizeFailure(ctx, f) {
+  if (f.size_waiver?.trim()) return null;
+  const c = sizeCounts(ctx, f);
+  const lim = slicingCfg(ctx);
+  if (!c || (c.tasks <= lim.max_tasks && c.migrations <= lim.max_migrations)) return null;
+  return `too large (${c.tasks} tasks, ${c.migrations} migrations; limit ${lim.max_tasks}/${lim.max_migrations}): split into slices (specflow slice add ${f.id} ...) or record a waiver (specflow feature set ${f.id} size_waiver "<reason>")`;
 }
 
 export function traits(ctx, f) {
@@ -130,8 +146,11 @@ export function checkEntry(ctx, f, target) {
       break;
     }
     case 'planned': {
+      if (isContainer(ctx, f)) break; // a container plans through its slices and needs no tasks.md
       const r = checkTasks(ctx, f);
       r.errors.forEach((e) => fail.push(e === 'tasks.md not found' ? 'tasks.md does not exist' : e));
+      const big = sizeFailure(ctx, f);
+      if (big) fail.push(big);
       break;
     }
     case 'implementing':

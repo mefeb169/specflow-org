@@ -117,6 +117,10 @@ export function getFeature(ctx, id) {
   return f;
 }
 
+/** Non-dropped slices of a feature. A feature with any is a container: work happens in its slices. */
+export const childrenOf = (ctx, id) => ctx.backlog.features.filter((x) => x.parent === id && !x.dropped);
+export const isContainer = (ctx, f) => childrenOf(ctx, f.id).length > 0;
+
 export function getRepo(ctx, name) {
   const r = ctx.config.repos.find((x) => x.name === name);
   if (!r) throw new UserError(`Unknown repo "${name}". Registered: ${ctx.config.repos.map((x) => x.name).join(', ') || '(none)'}`);

@@ -122,6 +122,9 @@ test('P1-5. upgrade: v1 dry run lists changes, --apply is additive and leaves va
   fx.cleanup();
 });
 
+/** Autonomous mode: only acceptance and release gates, so tests can walk the early stages. */
+const auto = (root) => { const c = readCfg(root); c.autonomy = 'autonomous'; fs.writeFileSync(cf(root), JSON.stringify(c)); };
+
 const specDir = (root, name = '001-x') => path.join(root, 'specs', name);
 function linkSpec(root, id, files = {}, name = '001-x') {
   const dir = specDir(root, name);
@@ -158,5 +161,66 @@ test('P1-7. lite lane still demands Repository Impact when a plan exists and rep
   w(path.join(specDir(fx.root), 'spec.md'), '# s\n');
   ok(cli(fx.root, 'stage', 'set', id, 'specified'));
   assert.match(cli(fx.root, 'stage', 'set', id, 'designed').err, /Repository Impact/);
+  fx.cleanup();
+});
+
+const tasksOf = (n, mig = 0) => Array.from({ length: n }, (_, i) => `- [ ] T${i + 1} [repo:backend] ${i < mig ? 'add migration' : 'work'} ${i}\n`).join('');
+
+test('P1-8. slice add inherits from the parent and makes it a container', () => {
+  const fx = setup();
+  const p = add(fx.root, 'Big', '--priority', 'P1', '--mvp');
+  ok(cli(fx.root, 'feature', 'set', p, 'tags', 'area:auth'));
+  const s = ok(cli(fx.root, 'slice', 'add', p, '--title', 'Slice one')).out.trim();
+  const rec = readBacklog(fx.root).features.find((x) => x.id === s);
+  assert.deepEqual([rec.kind, rec.lane, rec.parent, rec.priority, rec.mvp, rec.repos], ['slice', 'lite', p, 'P1', true, ['backend']]);
+  assert.deepEqual(rec.tags, ['area:auth']);
+  assert.match(cli(fx.root, 'slice', 'add', s, '--title', 'nested').err, /slices belong to a feature/);
+  const d = j(fx.root, 'status', p);
+  assert.equal(d.slices.length, 1);
+  assert.match(cli(fx.root, 'status', s).out, new RegExp(`slice of ${p}`));
+  assert.equal(j(fx.root, 'validate').ok, true);
+  fx.cleanup();
+});
+
+test('P1-9. container: plans without tasks.md, cannot advance past planned, done only when every slice is done', () => {
+  const fx = setup(); auto(fx.root);
+  const p = add(fx.root, 'Container');
+  linkSpec(fx.root, p, { 'spec.md': '# s\n', 'plan.md': '# p\n' });
+  const s = ok(cli(fx.root, 'slice', 'add', p, '--title', 'S1')).out.trim();
+  ok(cli(fx.root, 'feature', 'set', p, 'ui', 'false'));
+  for (const st of ['defined', 'specified', 'designed']) ok(cli(fx.root, 'stage', 'set', p, st));
+  // design gate is required for multi-repo/migration traits only; backend-only feature here
+  const r = cli(fx.root, 'stage', 'set', p, 'planned');
+  assert.equal(r.code, 0, r.err);
+  assert.match(cli(fx.root, 'stage', 'set', p, 'implementing').err, /container; work happens in its slices/);
+  assert.match(cli(fx.root, 'stage', 'set', p, 'done').err, /slices not done yet/);
+  // fast-forward the slice to done by editing state through the CLI is impossible, so patch the file (test only)
+  const b = readBacklog(fx.root);
+  b.features.find((x) => x.id === s).stage = 'done';
+  fs.writeFileSync(bl(fx.root), JSON.stringify(b));
+  ok(cli(fx.root, 'stage', 'set', p, 'done'));
+  const rec = readBacklog(fx.root).features.find((x) => x.id === p);
+  assert.equal(rec.stage, 'done');
+  assert.match(rec.history.at(-1).detail, /one-step rule waived/);
+  fx.cleanup();
+});
+
+test('P1-10. size rule: too many tasks or migrations blocks planned; a waiver or slices lift it', () => {
+  const fx = setup(); auto(fx.root);
+  const id = add(fx.root, 'Huge');
+  linkSpec(fx.root, id, { 'spec.md': '# s\n', 'plan.md': '# p\n', 'tasks.md': tasksOf(16) });
+  for (const st of ['defined', 'specified', 'designed']) ok(cli(fx.root, 'stage', 'set', id, st));
+  const r = cli(fx.root, 'stage', 'set', id, 'planned');
+  assert.notEqual(r.code, 0);
+  assert.match(r.err, /too large \(16 tasks, 0 migrations; limit 15\/1\): split into slices \(specflow slice add F-001 \.\.\.\) or record a waiver/);
+  const sz = j(fx.root, 'check', 'size', id);
+  assert.deepEqual([sz.tasks, sz.migrations, sz.within_limits], [16, 0, false]);
+  ok(cli(fx.root, 'feature', 'set', id, 'size_waiver', 'user approved: one big refactor'));
+  ok(cli(fx.root, 'stage', 'set', id, 'planned'));
+  // migrations
+  const id2 = add(fx.root, 'Migrations');
+  linkSpec(fx.root, id2, { 'spec.md': '# s\n', 'plan.md': '# p\n', 'tasks.md': tasksOf(4, 2) }, '002-m');
+  for (const st of ['defined', 'specified', 'designed']) ok(cli(fx.root, 'stage', 'set', id2, st));
+  assert.match(cli(fx.root, 'stage', 'set', id2, 'planned').err, /4 tasks, 2 migrations/);
   fx.cleanup();
 });
