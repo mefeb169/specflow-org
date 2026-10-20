@@ -33,7 +33,11 @@ export function teamCfg(ctx) {
 }
 
 export const deliveryCfg = (ctx) => ({ mode: 'push-pr', target_branch: null, pr_tool: 'gh', ...(ctx.config.delivery || {}) });
-export const releaseCfg = (ctx) => ({ by_ai: false, ...(ctx.config.release || {}) });
+export const RELEASE_KINDS = ['deploy', 'migrate', 'restart', 'smoke', 'other'];
+export const RELEASE_APPROVALS = ['ask', 'none'];
+export const releaseCfg = (ctx) => ({ by_ai: false, steps: [], post_release: [], require_merged: true, ...(ctx.config.release || {}) });
+/** Approval a step really needs: migrate and restart are always asked, the rest follow the step (default ask). */
+export const stepApproval = (s) => (['migrate', 'restart'].includes(s.kind) ? 'ask' : s.approval || 'ask');
 export const testingCfg = (ctx) => ({ unit_required: true, data_rules: '', ...(ctx.config.testing || {}) });
 export const toolsCfg = (ctx) => ({ graphify: false, ...(ctx.config.tools || {}) });
 
@@ -48,7 +52,7 @@ export function fillTeamDefaults(ctx) {
   const c = ctx.config;
   c.team = teamCfg(ctx);
   c.delivery = deliveryCfg(ctx);
-  c.release = releaseCfg(ctx);
+  c.release = { by_ai: false, ...(c.release || {}) };
   c.testing = testingCfg(ctx);
   c.tools = toolsCfg(ctx);
 }
@@ -78,3 +82,36 @@ export function validateTeam(ctx) {
 }
 
 export const needModel = (m) => { if (!modelOk(m)) throw new UserError(`--model must be opus, sonnet, haiku, inherit, fable or a claude-* id (got "${m}")`); return m; };
+
+export function validateRelease(ctx) {
+  const e = [];
+  const r = releaseCfg(ctx);
+  const names = new Set((ctx.config.repos || []).map((x) => x.name));
+  if (typeof r.by_ai !== 'boolean') e.push('release.by_ai must be true or false');
+  if (typeof r.require_merged !== 'boolean') e.push('release.require_merged must be true or false');
+  for (const [key, list] of [['steps', r.steps], ['post_release', r.post_release]]) {
+    if (!Array.isArray(list)) { e.push(`release.${key} must be a list`); continue; }
+    const seen = new Set();
+    for (const s of list) {
+      const at = (m) => e.push(`release.${key} "${s.name}": ${m}`);
+      if (!s.name) { e.push(`release.${key}: a step has no name`); continue; }
+      if (seen.has(s.name)) at('duplicate name');
+      seen.add(s.name);
+      if (!s.run) at('has no run command');
+      if (s.repo && !names.has(s.repo)) at(`unknown repo "${s.repo}"`);
+      if (key === 'steps') {
+        if (s.kind && !RELEASE_KINDS.includes(s.kind)) at(`kind must be one of ${RELEASE_KINDS.join(', ')}`);
+        if (s.approval && !RELEASE_APPROVALS.includes(s.approval)) at(`approval must be ask or none`);
+      }
+      if (s.timeout_s !== undefined && !(Number.isInteger(s.timeout_s) && s.timeout_s > 0)) at('timeout_s must be a positive integer');
+    }
+  }
+  return e;
+}
+
+/** Turns AI releasing on or off; the release role follows unless it was set by hand (caller saves). */
+export function setReleaseByAi(ctx, on) {
+  ctx.config.release = { ...releaseCfg(ctx), by_ai: on };
+  const t = materializeTeam(ctx);
+  if (t.roles.release && !t.locked.includes('release')) t.roles.release.enabled = on;
+}

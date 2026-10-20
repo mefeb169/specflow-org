@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { BLOCKER_KINDS, DEP_TYPES, GATES, KINDS, LANES, PRIORITIES, STAGES } from './lifecycle.mjs';
 import { repoDir } from './state.mjs';
-import { validateTeam } from './team.mjs';
+import { validateRelease, validateTeam } from './team.mjs';
 
 export function validate(ctx) {
   const e = [];
@@ -17,7 +17,7 @@ export function validate(ctx) {
   }
   for (const r of config.repos || []) if (r.ui !== undefined && typeof r.ui !== 'boolean') e.push(`repo "${r.name}": ui must be a boolean`);
   for (const [k, v] of Object.entries(config.ux || {})) if (typeof v !== 'boolean') e.push(`config.ux.${k} must be a boolean`);
-  e.push(...validateTeam(ctx));
+  e.push(...validateTeam(ctx), ...validateRelease(ctx));
   const ids = new Set(backlog.features.map((f) => f.id));
   if (ids.size !== backlog.features.length) e.push('duplicate feature ids in backlog');
   for (const f of backlog.features) {

@@ -241,3 +241,44 @@ test('P3-8. guard: deliver asks in the main session, is denied unattended and fo
   assert.equal(dec(run('specflow deliver F-001 --dry-run')), null);
   t.cleanup();
 });
+
+// ---------- release configuration ----------
+const rel = (root) => readCfg(root).release;
+
+test('P3-9. release step add/rm/list, defaults, validation and settings', () => {
+  const t = setup();
+  const { fx } = t;
+  const c = (...a) => cli(fx.root, 'release', ...a);
+  assert.match(c('step', 'list').out, /no release steps/);
+  ok(c('step', 'add', 'deploy-backend', '--run', 'node -e "0"', '--repo', 'backend', '--kind', 'deploy', '--approval', 'none', '--timeout', '30'));
+  ok(c('step', 'add', 'migrate-db', '--run', 'node -e "0"', '--repo', 'backend', '--kind', 'migrate', '--approval', 'none'));
+  ok(c('step', 'add', 'plain', '--run', 'node -e "0"'));
+  ok(c('step', 'add', 'health', '--run', 'node -e "0"', '--post'));
+  const r = rel(fx.root);
+  assert.deepEqual(r.steps[0], { name: 'deploy-backend', repo: 'backend', run: 'node -e "0"', kind: 'deploy', approval: 'none', timeout_s: 30 });
+  assert.deepEqual([r.steps[2].kind, r.steps[2].approval, r.steps[2].timeout_s, r.steps[2].repo], ['deploy', 'ask', 900, undefined]);
+  assert.deepEqual(r.post_release, [{ name: 'health', run: 'node -e "0"', timeout_s: 120 }]);
+  const l = JSON.parse(c('step', 'list', '--json').out);
+  assert.equal(l.steps.find((s) => s.name === 'migrate-db').approval, 'ask', 'migrate is always asked');
+  bad(c('step', 'add', 'plain', '--run', 'x'), /already exists/);
+  bad(c('step', 'add', 'n1', '--run', 'x', '--repo', 'ghost'), /Unknown repo/);
+  bad(c('step', 'add', 'n2', '--run', 'x', '--kind', 'party'), /--kind/);
+  bad(c('step', 'add', 'n3', '--run', 'x', '--approval', 'maybe'), /--approval/);
+  bad(c('step', 'add', 'n4', '--run', 'x', '--timeout', '0'), /--timeout/);
+  bad(c('step', 'add', 'n5'), /--run/);
+  bad(c('step', 'rm', 'ghost'), /unknown step/);
+  ok(c('step', 'rm', 'plain'));
+  ok(c('step', 'rm', 'health', '--post'));
+  assert.deepEqual([rel(fx.root).steps.length, rel(fx.root).post_release.length], [2, 0]);
+  ok(c('set', '--by-ai', 'true'));
+  ok(c('set', '--require-merged', 'false'));
+  assert.deepEqual([rel(fx.root).by_ai, rel(fx.root).require_merged], [true, false]);
+  bad(c('set', '--by-ai', 'maybe'), /--by-ai/);
+  bad(c('set'), /give --by-ai/);
+  assert.equal(j(fx.root, 'validate').ok, true);
+  patchCfg(fx.root, (x) => { x.release.steps.push({ name: 'deploy-backend', run: 'x', kind: 'zzz' }, { name: 'q', run: 'x', repo: 'ghost' }); });
+  const v = JSON.parse(cli(fx.root, 'validate', '--json').out);
+  assert.equal(v.ok, false);
+  assert.ok(v.errors.some((e) => /duplicate name/.test(e)) && v.errors.some((e) => /kind must be/.test(e)) && v.errors.some((e) => /unknown repo "ghost"/.test(e)));
+  t.cleanup();
+});

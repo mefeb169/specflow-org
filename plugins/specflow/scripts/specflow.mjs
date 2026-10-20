@@ -13,6 +13,7 @@ import { cmdNext, cmdStatus, cmdValidate } from './commands/views.mjs';
 import { cmdIntake, cmdIssue, cmdQuestion, cmdSlice } from './commands/work.mjs';
 import { cmdCheckpoint, cmdFocus, cmdInterrupt, cmdMilestone, cmdResume, cmdRework } from './commands/flow.mjs';
 import { cmdDecision, cmdLesson, cmdPref } from './commands/memory.mjs';
+import { cmdRelease } from './commands/release.mjs';
 import { cmdDeliver } from './commands/deliver.mjs';
 import { cmdDispatch } from './commands/dispatch.mjs';
 import { cmdSetup } from './commands/setup.mjs';
@@ -45,6 +46,8 @@ const HELP = `specflow <command>   (alias: sflow)
   setup questions | setup apply --answers <file.json> | setup status   (the setup interview as data; the setup skill asks the questions)
   dispatch <id> [--role r --repo name --question Q-n]   (packet for the PM: agent, model, prompt to spawn)
   deliver <id> [--dry-run] | deliver status <id> | deliver merge <id>   (push the branch, open or update ONE PR per repo; merge only in push-pr-merge mode)
+  release step add <name> --run c [--repo r --kind deploy|migrate|restart|smoke|other --approval ask|none --timeout s --post] | release step rm <name> [--post] | release step list | release set --by-ai true|false [--require-merged true|false]
+  release plan <id> | release run <id> [--step name --again] | release verify <id>   (release pipeline; run and verify only when release.by_ai is on)
   branches create <id>  verify run <id> --repo r [--kind k]  evidence add <id> --kind k --result r --note s
 All commands accept --json.`;
 
@@ -72,7 +75,7 @@ function main() {
     scan: cmdScan,
     doctor: (a, c) => { const d = doctor(c); emit(d, renderDoctor(d)); if (d.some((x) => !x.ok && x.name === 'state validation')) process.exitCode = 1; },
     repo: cmdRepo, feature: cmdFeature, dep: cmdDep, blocker: cmdBlocker, stage: cmdStage, gate: cmdGate, check: cmdCheck,
-    branches: cmdBranches, verify: cmdVerify, evidence: cmdEvidence, status: cmdStatus, next: cmdNext, validate: cmdValidate, upgrade: cmdUpgrade, slice: cmdSlice, issue: cmdIssue, question: cmdQuestion, intake: cmdIntake, pref: cmdPref, decision: cmdDecision, lesson: cmdLesson, checkpoint: cmdCheckpoint, rework: cmdRework, focus: cmdFocus, interrupt: cmdInterrupt, resume: cmdResume, milestone: cmdMilestone, team: cmdTeam, dispatch: cmdDispatch, setup: cmdSetup, deliver: cmdDeliver,
+    branches: cmdBranches, verify: cmdVerify, evidence: cmdEvidence, status: cmdStatus, next: cmdNext, validate: cmdValidate, upgrade: cmdUpgrade, slice: cmdSlice, issue: cmdIssue, question: cmdQuestion, intake: cmdIntake, pref: cmdPref, decision: cmdDecision, lesson: cmdLesson, checkpoint: cmdCheckpoint, rework: cmdRework, focus: cmdFocus, interrupt: cmdInterrupt, resume: cmdResume, milestone: cmdMilestone, team: cmdTeam, dispatch: cmdDispatch, setup: cmdSetup, deliver: cmdDeliver, release: cmdRelease,
   };
   const fn = commands[cmd];
   if (!fn) throw new UserError(`Unknown command "${cmd}". Run \`specflow help\`.`);
