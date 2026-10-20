@@ -439,3 +439,36 @@ test('P1-19. rework rounds: start from verifying, keep branches, close on accept
   assert.match(cli(fx.root, 'rework', 'close', id).err, /no open rework round/);
   fx.cleanup();
 });
+
+test('P1-20. pref, decision and lesson commands; HELP lists every new command', () => {
+  const fx = setup();
+  const a = add(fx.root, 'A');
+  ok(cli(fx.root, 'pref', 'set', 'detail', 'short updates'));
+  ok(cli(fx.root, 'pref', 'set', 'git', 'ai pushes', '--by', 'architect'));
+  const prefs = j(fx.root, 'pref', 'list');
+  assert.deepEqual(prefs.map((p) => [p.key, p.value, p.by]), [['detail', 'short updates', 'user'], ['git', 'ai pushes', 'architect']]);
+  ok(cli(fx.root, 'pref', 'rm', 'git'));
+  assert.equal(j(fx.root, 'pref', 'list').length, 1);
+  assert.match(cli(fx.root, 'pref', 'rm', 'nope').err, /unknown preference/);
+
+  ok(cli(fx.root, 'decision', 'add', 'Use yopmail?', 'yes for test accounts'));
+  ok(cli(fx.root, 'decision', 'add', 'Token TTL?', '30m', '--feature', a));
+  const all = j(fx.root, 'decision', 'list');
+  assert.deepEqual(all.map((d) => d.id), ['D-2', 'D-1'], 'newest first');
+  assert.deepEqual(j(fx.root, 'decision', 'list', '--feature', a).map((d) => d.id), ['D-2']);
+  assert.equal(j(fx.root, 'decision', 'list', '--limit', '1').length, 1);
+
+  const l = ok(cli(fx.root, 'lesson', 'add', 'Guard every public route', '--from', a)).out.trim().split(' ')[0];
+  assert.equal(l, 'L-1');
+  assert.equal(j(fx.root, 'lesson', 'list', '--status', 'proposed').length, 1);
+  ok(cli(fx.root, 'lesson', 'promote', l));
+  assert.equal(j(fx.root, 'lesson', 'list', '--status', 'promoted').length, 1);
+  ok(cli(fx.root, 'lesson', 'add', 'x'));
+  ok(cli(fx.root, 'lesson', 'reject', 'L-2'));
+  assert.equal(j(fx.root, 'lesson', 'list', '--status', 'rejected').length, 1);
+  // memory.json only changes through the CLI and survives validate
+  assert.equal(j(fx.root, 'validate').ok, true);
+  const help = cli(fx.root, 'help').out;
+  for (const c of ['slice add', 'issue add', 'issue list', 'intake', 'question add', 'question answer', 'rework start', 'focus', 'interrupt', 'resume', 'milestone', 'checkpoint', 'pref set', 'decision add', 'lesson promote', 'feature drop', 'check tasks|size']) assert.ok(help.includes(c), `HELP lacks ${c}`);
+  fx.cleanup();
+});

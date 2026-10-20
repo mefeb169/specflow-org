@@ -12,19 +12,30 @@ import { cmdEvidence, cmdVerify } from './commands/verify.mjs';
 import { cmdNext, cmdStatus, cmdValidate } from './commands/views.mjs';
 import { cmdIntake, cmdIssue, cmdQuestion, cmdSlice } from './commands/work.mjs';
 import { cmdCheckpoint, cmdFocus, cmdInterrupt, cmdMilestone, cmdResume, cmdRework } from './commands/flow.mjs';
+import { cmdDecision, cmdLesson, cmdPref } from './commands/memory.mjs';
 import { cmdUpgrade } from './commands/upgrade.mjs';
 import { cmdInstall, cmdUninstall } from './commands/install.mjs';
 
 const HELP = `specflow <command>   (alias: sflow)
-  init [--root-is-repo] | scan | doctor | validate | brief | status [id] | next | upgrade [--apply]
+  init [--root-is-repo] | scan | doctor | validate | brief | upgrade [--apply] | --version
   install [--scope project|user|local] [--dir path] [--source path|owner/repo] [--fix-legacy] | uninstall [--scope s] [--dir path] [--remove-marketplace]
-  --version
+  status [id] [--all] | next [--all]        (hide done/dropped; honour the current milestone)
   repo set <name> [--test c --build c --lint c --purpose s --stack a,b --ui true|false --confirm --deploy-order n]
   feature add --title s [--priority P2 --mvp --repos a,b --summary s --value s --risk low|med|high --ui true|false]
-  feature set|link|activate <id> ...   slice add <feature> --title s [--repos a,b --summary s --value s]
-  check tasks|size <id>   feature set <id> lane full|lite | size_waiver "<reason>"
-    dep add|rm <id> <dep> --type t   blocker add|resolve <id> ...
-  stage set <id> <stage> [--reason s]  gate approve|required <id> [gate]  check tasks <id>
+  feature set <id> title|summary|value|priority|risk|mvp|ui|repos|lane|milestone|tags|size_waiver <v>
+  feature link|activate <id> ...   feature drop <id> --reason s | feature restore <id>
+  slice add <feature> --title s [--repos a,b --summary s --value s]
+  issue add "<text>" [--kind bug|debt|chore --from id --repos a,b --priority P --milestone m] | issue list
+  intake <file> [--kind feature|bug|debt|chore --title s --repos a,b --priority P]
+  question add "<text>" [--feature id --to user|product|architect|ux|build|verify] | question answer Q-n "<answer>" [--by who] | question list [--open --feature id]
+  dep add|rm <id> <dep> --type t   blocker add|resolve <id> ...
+  stage set <id> <stage> [--reason s]  gate approve|required <id> [gate]  check tasks|size <id>
+  rework start <id> --reason s | rework close <id>
+  focus [id | --clear]   interrupt "<text>" [--kind bug|chore --repos a,b]   resume   milestone [set <name> | clear]
+  checkpoint <id> [--note s] [--next s]
+  pref set <key> <value> [--by role] | pref list | pref rm <key>
+  decision add "<question>" "<answer>" [--feature id --by who] | decision list [--feature id --limit n]
+  lesson add "<text>" [--from id] | lesson list [--status s] | lesson promote|reject L-n
   branches create <id>  verify run <id> --repo r [--kind k]  evidence add <id> --kind k --result r --note s
 All commands accept --json.`;
 
@@ -52,7 +63,7 @@ function main() {
     scan: cmdScan,
     doctor: (a, c) => { const d = doctor(c); emit(d, renderDoctor(d)); if (d.some((x) => !x.ok && x.name === 'state validation')) process.exitCode = 1; },
     repo: cmdRepo, feature: cmdFeature, dep: cmdDep, blocker: cmdBlocker, stage: cmdStage, gate: cmdGate, check: cmdCheck,
-    branches: cmdBranches, verify: cmdVerify, evidence: cmdEvidence, status: cmdStatus, next: cmdNext, validate: cmdValidate, upgrade: cmdUpgrade, slice: cmdSlice, issue: cmdIssue, question: cmdQuestion, intake: cmdIntake, checkpoint: cmdCheckpoint, rework: cmdRework, focus: cmdFocus, interrupt: cmdInterrupt, resume: cmdResume, milestone: cmdMilestone,
+    branches: cmdBranches, verify: cmdVerify, evidence: cmdEvidence, status: cmdStatus, next: cmdNext, validate: cmdValidate, upgrade: cmdUpgrade, slice: cmdSlice, issue: cmdIssue, question: cmdQuestion, intake: cmdIntake, pref: cmdPref, decision: cmdDecision, lesson: cmdLesson, checkpoint: cmdCheckpoint, rework: cmdRework, focus: cmdFocus, interrupt: cmdInterrupt, resume: cmdResume, milestone: cmdMilestone,
   };
   const fn = commands[cmd];
   if (!fn) throw new UserError(`Unknown command "${cmd}". Run \`specflow help\`.`);
