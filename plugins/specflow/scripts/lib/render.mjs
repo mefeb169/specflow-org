@@ -27,7 +27,7 @@ export function ranking(ctx) {
   const notReady = [];
   const acceptedIdx = stageIdx('accepted');
   for (const f of ctx.backlog.features) {
-    if (stageIdx(f.stage) >= acceptedIdx) continue;
+    if (stageIdx(f.stage) >= acceptedIdx || f.dropped) continue;
     const holding = depsStatus(ctx, f);
     const blockers = openBlockers(f).map((b) => `${b.id} (${b.kind}): ${b.text}`);
     if (holding.length || blockers.length) { notReady.push({ id: f.id, title: f.title, held_by: [...holding, ...blockers] }); continue; }

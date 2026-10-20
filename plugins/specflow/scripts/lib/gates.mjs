@@ -103,6 +103,7 @@ export function depsStatus(ctx, f) {
     if (!min) continue;
     const dep = ctx.backlog.features.find((x) => x.id === d.id);
     if (!dep) holding.push(`${d.id} (${d.type}) does not exist`);
+    else if (dep.dropped) holding.push(`dependency ${d.id} was dropped`);
     else if (stageIdx(dep.stage) < stageIdx(min)) holding.push(`${d.id} (${d.type}) is at ${dep.stage}, needs >= ${min}`);
   }
   return holding;

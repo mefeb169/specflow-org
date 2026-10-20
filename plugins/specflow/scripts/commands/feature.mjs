@@ -54,6 +54,23 @@ export function cmdFeature(args, ctx) {
     return emit(feat, feat.id);
   }
   const feat = getFeature(ctx, need(id, 'feature id required'));
+  if (sub === 'drop') {
+    const reason = need(typeof f.reason === 'string' ? f.reason : '', '--reason required');
+    if (feat.dropped) throw new UserError(`${feat.id} is already dropped`);
+    feat.dropped = { at: now(), reason };
+    if (ctx.backlog.focus === feat.id) ctx.backlog.focus = null;
+    ctx.backlog.parked = ctx.backlog.parked.filter((x) => x !== feat.id);
+    logHistory(feat, 'link', `dropped: ${reason}`);
+    ctx.saveBacklog();
+    return emit(feat, `${feat.id} dropped`);
+  }
+  if (sub === 'restore') {
+    if (!feat.dropped) throw new UserError(`${feat.id} is not dropped`);
+    feat.dropped = null;
+    logHistory(feat, 'link', 'restored');
+    ctx.saveBacklog();
+    return emit(feat, `${feat.id} restored`);
+  }
   if (sub === 'set') {
     const value = rest.join(' ');
     switch (field) {
@@ -97,7 +114,7 @@ export function cmdFeature(args, ctx) {
     fs.writeFileSync(path.join(loc, '.specify', 'feature.json'), JSON.stringify({ feature_directory: fd }));
     return emit({ id: feat.id, feature_json: posix(path.relative(ctx.root, path.join(loc, '.specify', 'feature.json'))) || '.specify/feature.json', feature_directory: fd }, `Active feature for Spec Kit: ${fd}`);
   }
-  throw new UserError('usage: feature add|set|link|activate');
+  throw new UserError('usage: feature add|set|link|activate|drop|restore');
 }
 
 function reaches(ctx, from, target, seen = new Set()) {

@@ -224,3 +224,59 @@ test('P1-10. size rule: too many tasks or migrations blocks planned; a waiver or
   assert.match(cli(fx.root, 'stage', 'set', id2, 'planned').err, /4 tasks, 2 migrations/);
   fx.cleanup();
 });
+
+test('P1-11. issues: add, list, from; drop and restore; dropped deps hold dependents and leave next', () => {
+  const fx = setup();
+  const a = add(fx.root, 'Feature A');
+  const i = ok(cli(fx.root, 'issue', 'add', 'Login button misaligned on small screens. It overlaps the logo and also breaks the layout when the browser is narrow, see screenshot.', '--kind', 'bug', '--from', a, '--repos', 'frontend', '--priority', 'P1')).out.trim();
+  const rec = readBacklog(fx.root).features.find((x) => x.id === i);
+  assert.deepEqual([rec.kind, rec.lane, rec.stage, rec.origin.from, rec.priority], ['bug', 'lite', 'proposed', a, 'P1']);
+  assert.ok(rec.title.length <= 80 && rec.summary.startsWith('Login button misaligned') && rec.summary.length > 80);
+  const list = j(fx.root, 'issue', 'list');
+  assert.deepEqual(list.map((x) => x.id), [i]);
+  assert.match(cli(fx.root, 'issue', 'add', 'x', '--kind', 'feature').err, /kind must be/);
+
+  const b = add(fx.root, 'Feature B');
+  ok(cli(fx.root, 'dep', 'add', b, a, '--type', 'requires'));
+  ok(cli(fx.root, 'feature', 'drop', a, '--reason', 'cancelled'));
+  assert.match(cli(fx.root, 'feature', 'drop', a).err, /--reason required/);
+  const next = j(fx.root, 'next');
+  assert.ok(!next.ready.some((x) => x.id === a));
+  assert.ok(next.not_ready.find((x) => x.id === b).held_by.some((h) => /dependency F-001 was dropped/.test(h)));
+  ok(cli(fx.root, 'feature', 'restore', a));
+  assert.ok(j(fx.root, 'next').ready.some((x) => x.id === a));
+  ok(cli(fx.root, 'feature', 'drop', i, '--reason', 'dup'));
+  assert.equal(j(fx.root, 'issue', 'list').length, 0);
+  fx.cleanup();
+});
+
+test('P1-12. question answer closes the question and logs a decision', () => {
+  const fx = setup();
+  const a = add(fx.root, 'Feature A');
+  const q = ok(cli(fx.root, 'question', 'add', 'Token lifetime?', '--feature', a, '--to', 'product')).out.trim();
+  assert.equal(q, 'Q-1');
+  assert.equal(j(fx.root, 'question', 'list', '--open').length, 1);
+  ok(cli(fx.root, 'question', 'answer', q, '30 minutes'));
+  assert.equal(j(fx.root, 'question', 'list', '--open').length, 0);
+  assert.match(cli(fx.root, 'question', 'answer', q, 'again').err, /already answered/);
+  const mem = JSON.parse(fs.readFileSync(path.join(fx.root, '.specflow', 'memory.json'), 'utf8'));
+  assert.equal(mem.schema_version, 2);
+  assert.deepEqual([mem.decisions[0].id, mem.decisions[0].question, mem.decisions[0].answer, mem.decisions[0].scope, mem.decisions[0].by], ['D-1', 'Token lifetime?', '30 minutes', a, 'user']);
+  assert.match(cli(fx.root, 'question', 'add', 'x', '--to', 'nobody').err, /--to must be/);
+  fx.cleanup();
+});
+
+test('P1-13. intake turns a task file into one item and refuses a second import', () => {
+  const fx = setup();
+  w(path.join(fx.root, 'tasks-new', 'task-9.md'), '\n# Fix lint warnings\n\nClean the lint output in the backend.\nKeep behavior unchanged.\n\n## Details\nmore\n');
+  const out = j(fx.root, 'intake', 'tasks-new/task-9.md', '--kind', 'chore');
+  assert.equal(out.title, 'Fix lint warnings');
+  assert.equal(out.summary, 'Clean the lint output in the backend. Keep behavior unchanged.');
+  assert.deepEqual([out.kind, out.lane, out.origin.source], ['chore', 'lite', 'tasks-new/task-9.md']);
+  const again = cli(fx.root, 'intake', 'tasks-new/task-9.md');
+  assert.notEqual(again.code, 0);
+  assert.match(again.err, /already imported as F-001/);
+  w(path.join(fx.root, 'notes.md'), 'just text\n');
+  assert.equal(j(fx.root, 'intake', 'notes.md', '--title', 'Custom').title, 'Custom');
+  fx.cleanup();
+});
