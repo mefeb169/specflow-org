@@ -121,6 +121,8 @@ The key "must not" rules:
 - verify never fixes code. It reports, and the orchestrator routes the finding back to build;
 - no role approves a gate.
 
+**Team model (0.6.0).** Every role runs as a plugin subagent (`agents/*.md`) with its own `model` and `tools`; `Agent` is granted only to `lead` (spawns builders) and `verifier` (spawns the independent reviewer), so nesting stays shallow. The main session is the PM: it alone talks to the user (subagents have no AskUserQuestion) and alone approves gates. `specflow dispatch <id>` is the deterministic bridge: it maps the stage (and ux.md state, lead coverage, disabled roles) to an agent, takes the model from `config.team` so the PM can override the agent file's default through the Agent tool's `model` parameter, and builds a short prompt. Roles communicate through files and the CLI (`question add`, `checkpoint`, handoff), not through the user. The PreToolUse hook sees `agent_id` for calls made inside a subagent and denies the PM-only actions (gates, init/install/upgrade, push, PR create/merge). The setup interview is data (`setup questions`), asked by the `specflow:setup` skill and recorded in the decision log.
+
 ## A6. Lifecycle state model
 
 Stages, in order (`backlog.json › features[].stage`):

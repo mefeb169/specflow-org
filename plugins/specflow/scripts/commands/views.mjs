@@ -1,7 +1,9 @@
-import { getFeature, inMilestoneScope } from '../lib/state.mjs';
+import { currentMilestone, getFeature, inMilestoneScope } from '../lib/state.mjs';
 import { featureDetail, ranking, statusRow, table } from '../lib/render.mjs';
 import { validate } from '../lib/validate.mjs';
 import { emit } from './io.mjs';
+
+const LEAN_LIMIT = 30;
 
 export function cmdStatus(args, ctx) {
   const id = args._[0];
@@ -24,9 +26,15 @@ export function cmdStatus(args, ctx) {
     ].filter(Boolean).join('\n'));
   }
   const all = !!args.flags.all;
-  const rows = ctx.backlog.features.filter((f) => all || (f.stage !== 'done' && !f.dropped && inMilestoneScope(ctx, f))).map((f) => statusRow(ctx, f));
+  let rows = ctx.backlog.features.filter((f) => all || (f.stage !== 'done' && !f.dropped && inMilestoneScope(ctx, f))).map((f) => statusRow(ctx, f));
+  // A long list with no milestone to narrow it: show only the items that have started.
+  let hiddenProposed = 0;
+  if (!all && !currentMilestone(ctx) && rows.length > LEAN_LIMIT) {
+    hiddenProposed = rows.filter((r) => r.stage === 'proposed').length;
+    rows = rows.filter((r) => r.stage !== 'proposed');
+  }
   const cut = (s, n) => (s.length > n ? `${s.slice(0, n - 3)}...` : s);
-  emit(rows, () => (rows.length ? table(rows.map((r) => ({ ...r, title: cut(r.title, 40), next: cut(r.next, 60), blocked: r.blocked ? 'yes' : '' })), ['id', 'kind', 'title', 'stage', 'priority', 'blocked', 'next']) : ctx.backlog.features.length ? 'Nothing active (done, dropped and out-of-milestone items are hidden; --all shows them).' : 'Backlog is empty.'));
+  emit(rows, () => (rows.length || hiddenProposed ? [rows.length ? table(rows.map((r) => ({ ...r, title: cut(r.title, 40), next: cut(r.next, 60), blocked: r.blocked ? 'yes' : '' })), ['id', 'kind', 'title', 'stage', 'priority', 'blocked', 'next']) : '', hiddenProposed ? `... and ${hiddenProposed} proposed items (status --all, or set a milestone)` : ''].filter(Boolean).join('\n') : ctx.backlog.features.length ? 'Nothing active (done, dropped and out-of-milestone items are hidden; --all shows them).' : 'Backlog is empty.'));
 }
 
 export function cmdNext(args, ctx) {

@@ -112,6 +112,7 @@ Talk to Claude Code at the workspace root:
 | "continue" / "resume F-004" (new session) | the brief names the focus item and its handoff file (`specs/<dir>/handoff.md`); work continues from that, not from re-reading the artifacts |
 | "also fix X" / "note that Y is broken" | `specflow issue add` (a bug, debt or chore item in the lite lane, linked to the current item); nothing grows the current scope silently |
 | a question the team needs answered | `specflow question add`; the answer is logged as a decision and never asked again |
+| "configure specflow" / first use | `specflow:setup`: a short interview (workflow, approvals, Git and PR policy, release, tests, models, team leads, update detail, graphify, milestone, slice size); answers go to `config.json` and the decision log, and are never asked twice |
 | "this is too big" | `specflow slice add`: slices are releasable pieces of a feature, planned in the lite lane |
 
 Human gates (`spec`, `design`, `implement`, `acceptance`, `release`) show an approval prompt; no skill approves them for you. In `bypassPermissions`/`dontAsk` modes these actions are refused instead.
@@ -127,6 +128,22 @@ sflow focus F-004       # mark what you are working on; sflow interrupt "..." / 
 sflow checkpoint F-004 --next "run verify"   # rewrite the handoff file
 sflow issue list        # open bugs, debt and chores; sflow question list --open
 ```
+
+## How the team works
+
+The Claude session you talk to is the **Project Manager (PM)**. It is the only role that talks to you and the only one that approves gates. Every other role is a subagent with its own model and a fixed contract:
+
+| Role | Agent | Default model | Does |
+|---|---|---|---|
+| product | `specflow:product` | opus | defines features, writes spec.md, runs the acceptance walkthrough |
+| ux | `specflow:ux` | opus | ux.md for UI items (enabled when a repo has `ui: true`) |
+| architect | `specflow:architect` | opus | plan, Repository Impact, tagged tasks, slicing |
+| lead (optional) | `specflow:lead` | opus | plans one area and spawns one builder per repo |
+| builder | `specflow:builder` | sonnet | implements one repo of one slice |
+| verifier | `specflow:verifier` | sonnet | runs verification, spawns the independent reviewer |
+| reviewer, profiler | `independent-reviewer`, `repo-profiler` | opus, haiku | read-only review and repo profiling |
+
+The PM loop: `specflow dispatch <id> --json` names the agent, model and prompt for the item's stage; the PM spawns that agent, reads its short report, routes its questions (team questions to the role that owns the answer, user questions batched and checked against the decision log first), presents gates, and dispatches the next step. Roles never talk to the user: they write questions with `specflow question add` and checkpoint before returning. The hook denies `gate approve`, `init`, `upgrade --apply`, `install`, `uninstall`, `specify init`, `git push`, `gh pr create` and `gh pr merge` for subagents. Models come from `specflow team show`, so `specflow team set builder --model opus` takes effect at the next dispatch. `specflow:setup` asks about the team once, after `init`.
 
 ## Command reference
 
@@ -152,6 +169,10 @@ Every command accepts `--json`. `specflow help` prints this list.
 | `pref set <key> <value>` / `pref list` / `pref rm <key>` | Learned preferences (`.specflow/memory.json`) |
 | `decision add "<q>" "<a>" [--feature id]` / `decision list [--feature id --limit n]` | Owner decisions, newest first |
 | `lesson add "<text>" [--from id]` / `lesson list [--status s]` / `lesson promote\|reject L-n` | Recurring findings proposed as rules; only the owner promotes one |
+| `team [show]` / `team set <role> [--model m --enabled true|false]` / `team set --communication short|normal|detailed` / `team set --workflow feature|task` | The team: roles, models, leads. `team set <role>` locks the role against `team generate` |
+| `team lead add <name> --repos a,b` / `team lead rm <name>` / `team generate` | Leads per area (one repo belongs to at most one lead); `generate` re-derives defaults from the repos and suggests leads with 4+ repos |
+| `dispatch <id> [--role r --repo name --question Q-n]` | The packet the PM uses to spawn a role: agent, model, repos still to do, and a prompt under 1,200 characters |
+| `setup questions` / `setup apply --answers <file.json>` / `setup status` | The setup interview as data: questions with defaults from the workspace, validated answers (logged as decisions), what is answered |
 | `repo set <name> [--test c --build c --lint c --purpose s --stack a,b --ui true\|false --confirm --deploy-order n]` | Registry of repos and their confirmed commands |
 | `feature add --title s [--priority P2 --mvp --repos a,b --summary s --value s --risk r --ui true\|false]` | New backlog feature |
 | `feature set <id> <field> <value>` / `feature link <id> <spec-dir>` / `feature activate <id>` | Edit fields, link a Spec Kit directory, point Spec Kit at the feature |
@@ -171,6 +192,7 @@ Lifecycle: `proposed > defined > specified > designed > planned > implementing >
 ## Updating, uninstalling, migrating
 
 - **Update the plugin and command:** `git pull` in the repository, then in Claude `/reload-plugins` (or start a new session). Existing workspaces keep working; if a release needs a state migration, `specflow brief` and `specflow doctor` say so.
+- **0.6.0:** `specflow upgrade --apply` adds `team`, `delivery`, `release`, `testing` and `tools` to `config.json` (additive; the ux role is enabled when a repo has `ui: true`). Nothing is rewritten on read; a 0.5.0 config works unchanged.
 - **0.5.0 (schema v2):** a 0.4.0 workspace keeps working unchanged (missing fields are filled in memory, nothing is rewritten on read). `specflow upgrade` lists the additions, `specflow upgrade --apply` writes them (kinds, lanes, focus, questions, `.specflow/memory.json`, slicing and lane config) without changing any existing value.
 - **Migrate a workspace after an update:** `specflow upgrade` (shows what would change), then `specflow upgrade --apply`.
 - **Uninstall from a project:** `specflow uninstall` (add `--remove-marketplace` to drop the marketplace entry too). Your `.specflow/` and `specs/` folders are untouched.
@@ -195,7 +217,7 @@ More detail on what was verified and what was not: [docs/runtime.md](docs/runtim
 
 ## Status
 
-Public beta (0.5.0). Tested on Windows with Node 26 and Spec Kit 1.2.0. The CI workflow covers Ubuntu, macOS and Windows on Node 18 and 22 but has not run yet; macOS/Linux and Node 18 are untested. Known gaps are in the [plugin README](plugins/specflow/README.md).
+Public beta (0.6.0). Tested on Windows with Node 26 and Spec Kit 1.2.0. The CI workflow covers Ubuntu, macOS and Windows on Node 18 and 22 but has not run yet; macOS/Linux and Node 18 are untested. Known gaps are in the [plugin README](plugins/specflow/README.md).
 
 ## Development
 

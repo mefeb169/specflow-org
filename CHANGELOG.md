@@ -2,6 +2,21 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/). Versions follow the plugin version in `plugins/specflow/.claude-plugin/plugin.json`.
 
+## [0.6.0] - 2026-10-20
+Phase 2 of the team-model roadmap: roles as subagents. A 0.5.0 workspace keeps working before `specflow upgrade --apply`.
+### Added
+- Role agents `product`, `architect`, `ux`, `lead`, `builder`, `verifier` (next to `independent-reviewer` and `repo-profiler`) with a model policy (opus plans, sonnet builds, haiku profiles) and a shared subagent contract (no user contact, questions via `question add`, checkpoint, report of at most 15 lines).
+- `team` commands: roles, models, `--enabled`, `locked` roles, `communication`, `workflow`, leads per area, `team generate` (ux from repos, lead suggestion with 4+ repos).
+- `dispatch <id>`: deterministic packet (role, agent, model, repo, repos still to do in deploy order, prompt under 1,200 characters); disabled roles fall back (ux to architect, lead to builder, otherwise the PM).
+- Guard: subagent calls (hook input has `agent_id`) are denied `gate approve`, `init`, `upgrade --apply`, `install`, `uninstall`, `specify init`, `git push`, `gh pr create|merge`.
+- Setup interview as data: `setup questions|apply|status`; answers are validated, written to config and logged as decisions. New skill `specflow:setup`.
+- Config keys `team`, `delivery`, `release`, `testing`, `tools` (the last three are recorded now and used by later phases); upgrade migration `0.6.0`.
+- Eval case `pm-dispatches-role`.
+### Changed
+- The `flow` skill is now the PM loop: dispatch, spawn, read the report, route questions, present gates. The PM does no role work except when a disabled role falls back to it.
+- Role skills gain a "When dispatched as a subagent" section; lifecycle.md gains the stage-to-role-to-agent table and the lead rule; the workspace CLAUDE.md block states that only the PM talks to the user and approves gates.
+- `status` with more than 30 open items and no milestone lists only items past `proposed` plus a summary line (`status --all` shows everything).
+
 ## [0.5.0] - 2026-10-20
 Phase 1 of the team-model roadmap: continuity and lean context. Schema v2; a 0.4.0 workspace keeps working before `specflow upgrade --apply`.
 ### Added

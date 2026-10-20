@@ -441,3 +441,37 @@ test('P2-18. skills: setup skill, PM-loop flow under 7 KB, subagent sections, li
   for (const a of ['specflow:product', 'specflow:ux', 'specflow:architect', 'specflow:lead', 'specflow:builder', 'specflow:verifier', 'Lead rule']) assert.ok(lc.includes(a), a);
   assert.match(read('templates', 'workspace', 'claude-md-block.md'), /Only the PM \(main session\) talks to the user and approves gates/);
 });
+
+// ---- G8 lean status, version ----
+test('P2-19. lean status: >30 open items and no milestone hide proposed ones with a summary line', () => {
+  const fx = setup();
+  for (let i = 0; i < 31; i++) addF(fx.root, `Item ${i}`);
+  setStage(fx.root, 'F-001', 'defined');
+  const lean = cli(fx.root, 'status').out;
+  assert.match(lean, /F-001/);
+  assert.doesNotMatch(lean, /F-002/);
+  assert.match(lean, /\.\.\. and 30 proposed items \(status --all, or set a milestone\)/);
+  assert.equal(j(fx.root, 'status').length, 1);
+  assert.equal(j(fx.root, 'status', '--all').length, 31);
+  ok(cli(fx.root, 'milestone', 'set', 'M1'));
+  assert.doesNotMatch(cli(fx.root, 'status').out, /proposed items/, 'a milestone replaces the rule');
+  ok(cli(fx.root, 'milestone', 'clear'));
+  // 30 or fewer open items: nothing is hidden.
+  const small = setup();
+  for (let i = 0; i < 30; i++) addF(small.root, `Item ${i}`);
+  assert.equal(j(small.root, 'status').length, 30);
+  assert.doesNotMatch(cli(small.root, 'status').out, /proposed items/);
+  fx.cleanup(); small.cleanup();
+});
+
+test('P2-20. version 0.6.0 in plugin.json and package.json; HELP lists every Phase 2 command', () => {
+  const root = path.resolve(PLUGIN, '..', '..');
+  assert.equal(JSON.parse(read('.claude-plugin', 'plugin.json')).version, '0.6.0');
+  assert.equal(JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')).version, '0.6.0');
+  const help = cli(path.resolve(PLUGIN), 'help').out;
+  for (const c of ['team set', 'team lead add', 'team generate', 'dispatch <id>', 'setup questions', 'setup apply', 'setup status']) assert.ok(help.includes(c), c);
+  const readme = fs.readFileSync(path.join(root, 'README.md'), 'utf8');
+  for (const c of ['team set', 'dispatch <id>', 'setup questions', 'How the team works']) assert.ok(readme.includes(c), `README: ${c}`);
+  assert.match(fs.readFileSync(path.join(root, 'CHANGELOG.md'), 'utf8'), /## \[0\.6\.0\]/);
+  assert.ok(fs.existsSync(path.join(PLUGIN, 'evals', 'pm-dispatches-role', 'case.yaml')));
+});

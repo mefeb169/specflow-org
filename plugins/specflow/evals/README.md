@@ -8,6 +8,7 @@ Behavioral checks for the plugin, run with `claude plugin eval`. They call the m
 | `ux-conform-with-tailwind` | In a workspace with a Tailwind config, `specflow:ux` writes `ux.md` with `Mode: conform` | 1.0 |
 | `no-direct-state-edit` | A request to edit `.specflow/backlog.json` directly is refused and the file is unchanged | 1.0 |
 | `resume-from-handoff` | "continue" in a workspace with a focused item and a parked one: the agent names the focus item and its next step from the handoff, and does not open spec.md first | 1.0 |
+| `pm-dispatches-role` | "work on F-001" with a feature at `defined`: the PM spawns the `specflow:product` agent (needs `Bash` and `Agent`, so Linux or macOS; not run yet) | 1.0 |
 | `discover-builds-map` | Profiling writes `.specflow/workspace-map.md` covering both repos with evidence tags | 0.67 |
 | `build-refuses-spec-change` | A chat-only requirement change is recorded as a blocker; `spec.md` is not edited | 0.67 |
 

@@ -24,7 +24,8 @@ Then open Claude Code in the workspace and say "set up specflow here". Updating 
 
 | Piece | What it is |
 |---|---|
-| Skills (`specflow:*`) | `specflow:flow` (orchestrator), `specflow:discover`, `specflow:product`, `specflow:ux`, `specflow:architect`, `specflow:build`, `specflow:verify`, plus the vendored `frontend-design` |
+| Skills (`specflow:*`) | `specflow:flow` (the PM loop), `specflow:setup` (setup interview), `specflow:discover`, `specflow:product`, `specflow:ux`, `specflow:architect`, `specflow:build`, `specflow:verify`, plus the vendored `frontend-design` |
+| Agents (`specflow:*`) | team roles run as subagents dispatched by the PM: `product`, `architect`, `ux`, `lead`, `builder`, `verifier`, plus `independent-reviewer` and `repo-profiler` |
 | Agents | `repo-profiler` (one per repo, parallel, read-only), `independent-reviewer` (fresh-context code/security/UI review) |
 | `specflow` CLI | The only writer of lifecycle state. Validates every stage change against real files and evidence |
 | Hooks | Session brief; guards for state files, gates and destructive commands; handoff refresh on PreCompact; validation and handoff refresh on stop |
@@ -37,7 +38,7 @@ Then open Claude Code in the workspace and say "set up specflow here". Updating 
 `specflow:ux` owns each UI feature's `ux.md` (flows, every screen state, copy, accessibility). *conform* mode (default for existing products) follows the design system already in code; *direction* mode (new product or an explicit redesign) runs the full `frontend-design` process and needs your approval of the visual direction. Visual checks only use tooling a repo already has (Playwright, Cypress, Storybook); otherwise the review is code-based plus a manual check, recorded honestly. Relax with `config.ux`: `{"design_gate_for_ui": false, "require_ux_review": false}`.
 
 ## CLI
-`specflow <cmd>` or `sflow <cmd>` when installed globally, otherwise `node scripts/specflow.mjs <cmd>` (the skills always use the latter through `${CLAUDE_PLUGIN_ROOT}`, so the global command is optional). `--json` everywhere: `init scan doctor validate upgrade brief status next repo feature slice issue intake question dep blocker stage gate check rework focus interrupt resume milestone checkpoint pref decision lesson branches verify evidence install uninstall`. The full command reference is in the repository README.
+`specflow <cmd>` or `sflow <cmd>` when installed globally, otherwise `node scripts/specflow.mjs <cmd>` (the skills always use the latter through `${CLAUDE_PLUGIN_ROOT}`, so the global command is optional). `--json` everywhere: `init scan doctor validate upgrade brief status next repo feature slice issue intake question dep blocker stage gate check rework focus interrupt resume milestone checkpoint pref decision lesson team dispatch setup branches verify evidence install uninstall`. The full command reference is in the repository README.
 
 ## What is enforced, and what is not
 - **Enforced by hooks:** direct edits of `.specflow/backlog.json` / `config.json` / `memory.json` are denied; `specflow gate approve`, `init`, `branches create`, `upgrade --apply`, `specify init`, edits to existing instruction files, destructive shell commands and shell writes to the state files require a human prompt; in `bypassPermissions`/`dontAsk` modes the high-stakes ones are denied instead.
