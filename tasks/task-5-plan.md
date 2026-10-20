@@ -194,7 +194,7 @@ Answered 2026-10-20.
 | 8 | Spec Kit | **Full Spec Kit for features; a lite path** (short spec + tasks, no ux or research files) for small slices and fixes. |
 | 9 | Learning | Owner answers are logged automatically in the decisions log. Turning a lesson into a project rule needs the owner's OK. |
 | 10 | graphify | **Asked in the setup interview** (install and use or not). When used: AST-only, never its AI modes; fall back to grep. |
-| 11 | Checkpoints | **One release per phase** (0.5.0 to 0.9.0): committed, versioned, tests passing, short report after each phase; work continues to the next phase unless the owner stops it. |
+| 11 | Checkpoints | **One release per phase** (0.5.0 to 0.9.0): committed, versioned, tests passing, short report after each phase. **Updated 2026-10-20: stop after Phase 1**; Phase 2 starts only when the owner says so. |
 | 12 | Wali App | **Reference only.** Wali is evidence for the design, not a migration target in this task. The owner installs the new version there. Phase 5 drops "migrate Wali" and keeps the upgrade path (schema v1 to v2) and its documentation, tested on fixtures. |
 
 ---
@@ -369,3 +369,10 @@ Docs: README command reference and "Daily use" rows (interrupt, resume, checkpoi
 - Tests are slow on this machine (full suite about 80 s); one early run exceeded a tool timeout but passed when re-run.
 - The README "Daily use" table and command reference were updated by hand; no automated check that README, HELP and skills list the same commands beyond the HELP test.
 - Not exercised: Node 18, macOS/Linux; the F11 "Wali-like" fixture is the 120-feature brief test only.
+
+### Review of Phase 1 (Opus, 2026-10-20)
+- Re-ran the full suite: 65/65 pass. Read the diff of state, gates, stage, migrations, guard, hooks, flow commands, handoff and brief against Part F: matches the spec; the deviations above are reasonable and accepted.
+- Smoke test on a **copy** of Wali App's `.specflow/` and `specs/` (scratch folder, Wali untouched): v1 brief/status/next work before upgrade; `upgrade` dry run and `--apply` succeed and `validate` is clean; focus, checkpoint, interrupt, brief, resume and the generated handoff.md behave as specified.
+- Fixed in review: the brief's trust line ("State is in the specflow CLI, not memory") had the lowest priority, so it was the first line cut when over budget; it now outranks optional lines, with a test assertion (P1-18). Merged three duplicate `state.mjs` imports in `commands/flow.mjs`.
+- Noted for later (not changed): with no current milestone, `status` still lists every non-done item (126 rows on Wali). Setting a milestone fixes it; Phase 2's setup interview should ask for one, or `status` could collapse `proposed` items by default.
+- Stopped after Phase 1 as the owner asked.

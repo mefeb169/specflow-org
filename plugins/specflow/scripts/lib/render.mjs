@@ -148,7 +148,8 @@ export function brief(ctx) {
   const top = ranking(ctx).ready[0];
   if (top && !rest.length && !focus) add(cut(`Suggested next: ${top.id} ${top.title} (${top.reasons.slice(0, 2).join('; ')})`, 120), 5);
   warnings(ctx).slice(0, 3).forEach((x, i) => add(cut(`! ${x}`, 120), 8 - i));
-  add('State is in the specflow CLI, not memory. Use the `specflow` skill to proceed.', 2);
+  // The trust rule outranks everything optional: it must survive the budget cut.
+  add('State is in the specflow CLI, not memory. Use the `specflow` skill to proceed.', 8.5);
   const total = () => L.reduce((n, x) => n + x.t.length + 1, 0);
   while (total() > BRIEF_BUDGET && L.length > 3) {
     let lo = 0;

@@ -1,10 +1,8 @@
 // Session flow: focus, interrupts, milestones.
 import { clearDownstreamGates } from '../lib/gates.mjs';
-import { UserError, currentMilestone, getFeature, handoffRel, logHistory } from '../lib/state.mjs';
+import { UserError, currentMilestone, getFeature, handoffRel, logHistory, now, repoDir } from '../lib/state.mjs';
 import { currentBranch, isDirty } from '../lib/git.mjs';
-import { repoDir } from '../lib/state.mjs';
 import { refreshHandoff, writeHandoff } from '../lib/handoff.mjs';
-import { now } from '../lib/state.mjs';
 import { emit, need } from './io.mjs';
 import { newIssue } from './work.mjs';
 

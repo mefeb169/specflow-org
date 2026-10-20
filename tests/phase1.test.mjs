@@ -401,6 +401,7 @@ test('P1-18. brief carries focus, parked, milestone, preferences, questions and 
   const out = cli(fx.root, 'brief').out;
   assert.ok(out.length < 1500, `brief is ${out.length} chars:\n${out}`);
   assert.match(out, /Focus: F-121/);
+  assert.match(out, /State is in the specflow CLI, not memory/);
   assert.match(out, /Parked: F-001/);
   assert.match(out, /Milestone: m1/);
   assert.match(out, /Preferences: key0=/);
