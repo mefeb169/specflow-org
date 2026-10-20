@@ -424,6 +424,57 @@ Docs: README command reference and "Daily use" rows (interrupt, resume, checkpoi
 - Setup `tools.graphify` detection checks PATH only (stubbed in tests by `SPECFLOW_FAKE_GRAPHIFY`); `delivery`, `release`, `testing` and `tools` are recorded but nothing consumes them yet (Phase 3/4).
 - Not exercised: Node 18, macOS/Linux. Full suite takes roughly 100 s here.
 
+### Phase 3 (0.7.0), branch `task-5`
+
+**Commits (hash, subject)**
+- 9ec4303 feat: deliver command (push, one PR per repo, status, merge) with guard (H2)
+- 2ce1557 feat: release configuration (steps, post-release checks, flags) and CLI (H3)
+- ed074c5 feat: release plan, run and verify with progress, evidence and guard (H4)
+- 47d26c4 feat: release role, dispatch to release, setup release.steps, 0.7.0 migration (H5)
+- 4c6a894 feat: verify skill unit-test rule and setup skill release.steps flow (H6)
+- be9f834 docs: delivery and release in flow skill, lifecycle, README, CHANGELOG, architecture (H7)
+- 3129200 chore: version 0.7.0 (plugin.json, package.json), migration note, version tests (H8)
+- (this log is committed separately after H8)
+
+**Files changed per step** (under `plugins/specflow/` unless noted)
+- H2: `scripts/lib/deliver.mjs`, `scripts/commands/deliver.mjs` (new), `scripts/lib/git.mjs` (`git`, `remoteUrl`, `defaultBranch` exported), `scripts/lib/state.mjs` (`delivery` and `release_progress` normalized in memory; `inDeployOrder`, also used by dispatch), `scripts/lib/guard.mjs`, `scripts/lib/lifecycle.mjs` (evidence kinds `delivery`, `merge`), `scripts/lib/handoff.mjs`, `scripts/lib/render.mjs`, `scripts/commands/{views,io}.mjs`, `scripts/specflow.mjs`, `tests/phase3.test.mjs` (new, P3-1..8).
+- H3: `scripts/commands/release.mjs` (new), `scripts/lib/team.mjs` (`releaseCfg` extended, `stepApproval`, `validateRelease`, `setReleaseByAi`), `scripts/lib/validate.mjs`, `scripts/lib/release.mjs` (stub, replaced in H4), `scripts/specflow.mjs`; test P3-9.
+- H4: `scripts/lib/release.mjs`, `scripts/lib/gates.mjs` (`released` needs every step), `scripts/lib/guard.mjs`; tests P3-10..15.
+- H5: `agents/release-manager.md` (new), `scripts/lib/{team,dispatch,setup,migrations}.mjs`, `templates/workspace/config.json`; tests P3-16..19. This commit also carries the H6 code (dispatch `Testing:` line, accurate setup `why` texts) and the H8 migration; see deviation 8.
+- H6: `skills/verify/SKILL.md`, `skills/setup/SKILL.md`.
+- H7: `skills/flow/SKILL.md` (6.3 KB, under the 7 KB test limit), `skills/_shared/lifecycle.md`, `templates/workspace/claude-md-block.md`, `README.md`, `CHANGELOG.md`, `docs/architecture.md` (A12 and the approval table), `plugins/specflow/README.md`; test P3-20.
+- H8: `.claude-plugin/plugin.json` and root `package.json` (0.7.0), `README.md` (migration note), `tests/{compat,legacy,phase2}.test.mjs` (version strings), test P3-21.
+
+**Existing tests adjusted:** `tests/compat.test.mjs` and `tests/legacy.test.mjs` asserted `framework_version === '0.6.0'` after `upgrade --apply`; now `'0.7.0'`. `tests/phase2.test.mjs` P2-20 asserted version 0.6.0 in `plugin.json` and `package.json`; now 0.7.0 (title shortened). Nothing else changed.
+
+**Deviations / decisions where the spec was open**
+1. `deliver`: item-level and repo-level preconditions are all checked up front for every repo; any failure refuses the whole run with the list and nothing is pushed. Only runtime failures (push rejected, `gh` error) and PR-state refusals (MERGED/CLOSED, no target branch, `gh pr view` error) are per repo, with the other repos still running and exit code 1. `--dry-run` reports failed preconditions as `blocked:` lines with exit code 1 and changes nothing.
+2. A container item (one with slices) is refused by `deliver` ("deliver one of its slices"). `deliver` records the PR number from the URL printed by `gh pr create`.
+3. `gh` is resolved from `SPECFLOW_GH` (tokens split on whitespace, quotes allowed) and run without a shell. Tests use `"<node>" "<fake-gh.mjs>"`. `deliver status` and `deliver merge` re-read PR state with `gh pr view`; `merge` refreshes first and merges only OPEN PRs.
+4. `release run` with `--step` runs that step even if earlier steps have not passed (no ordering enforcement, as the spec says "runs that one step"); a step that already passed needs `--again` (error otherwise). `release run` reads PR states from the recorded `delivery` (refresh them with `deliver status`).
+5. `released` requires every configured step to have passed only when `release.by_ai` is true. With AI release off the steps are the owner's checklist, and requiring progress that only `release run` records would make the stage unreachable. Spec text said "when steps exist".
+6. `release plan` keeps an existing `## Rollback` body across regenerations (otherwise the release role's notes would be overwritten); without a spec dir the file goes to `.specflow/release/<id>.md`. `release verify` does not require `by_ai`.
+7. Release role question target is `build` (the closest of the fixed question targets). `dispatch` at `accepted` without an approved acceptance gate still goes to `product`; with the gate it goes to `release` (enabled) or `pm` (prompt says the PM delivers and releases, or the owner does). The old `released` PM prompt had empty parentheses `(, )` from stripped text; it now says the PM runs `release verify`.
+8. The H5 commit also contains the H6 code (Testing line, `why` texts) and the H8 config migration because those edits were made together; the H6 commit holds only the skill changes and H8 only the version bump and tests. Migration 0.7.0 materializes `release` keys and the `release` role (`enabled` from `by_ai`). `fillTeamDefaults` (the 0.6.0 migration) still writes `release: { by_ai: false }` only, so the 0.6.0 migration tests keep their shape; `releaseCfg` fills the new keys on read.
+9. `setReleaseByAi` (used by `release set --by-ai` and setup `release.by_ai`) moves the `release` role with the flag unless that role was set by hand (`team set release`, which locks it).
+10. `release.steps` in setup is a free-text question that only logs the answer; the setup skill dispatches the release role, which needs a work item (`dispatch <id> --role release`), so with an empty backlog drafting waits for the first item. The skill says so.
+11. `parseArgs` treats `--post`, `--dry-run` and `--again` as boolean flags.
+12. Not done from the spec's optional-looking items: no eval case for the release flow (evals call the model).
+
+**Test results**
+- Final `npm test` on commit 3129200: tests 106, pass 106, fail 0 (85 from Phases 1-2 + 21 new in `tests/phase3.test.mjs`, P3-1 .. P3-21). `npm test` was green before every commit (93, 94, 100, 104, 105, 106 tests).
+- New tests cover: every deliver precondition refusal and commit mode; dry run changes nothing; push to a local bare repo; PR create vs reuse (OPEN) vs refuse (MERGED, CLOSED) and the origin/HEAD fallback with a fake `gh`; delivery record, evidence, handoff and `status` table; partial failure and exit code; `deliver status` merge evidence once; `deliver merge` mode and gate checks, no `--admin` or `--delete-branch`; refusal during a rework round; release step add/rm/list/validation/settings; `release plan` file and kept rollback; `release run` preconditions, stop at the first approval step, `--step`, progress skip, `--again`, failure stops and retries; `released` entry needs every step; `release verify` evidence; guard (ask in main, deny unattended and for subagents, `deliver status`, `--dry-run`, `release plan` and `release step` not guarded); release role agent and config; dispatch to release, PM fallback and the Testing line; setup `release.steps` and why texts; migration 0.7.0 from 0.6.0 and chained from 0.4.0; skills, docs and block; versions and HELP.
+- All pushes in tests go to bare repos inside a temp folder; `gh` is a fake script; release steps are `node -e` commands. Nothing contacted a real server.
+
+**`claude plugin validate plugins/specflow`:** run on the final tree (commit 3129200); output: "Validating plugin manifest ... Validation passed".
+
+**Open issues / not done**
+- Not exercised against real GitHub or a real `gh` (output shapes of `gh pr view --json url,state,number` and `gh pr create` follow its documented behavior; the "no pull requests found" detection is a regex on stderr).
+- Not exercised in a live Claude Code session: that the guard's `ask` for `deliver` and `release run` shows the intended prompt, that `agent_id` arrives on subagent hook calls, and the PM loop in the flow skill.
+- `deliver` has no way to push to a remote other than `origin`, and no `--force` by design.
+- `release run` executes configured commands through the shell as given; the safety is the approval prompt and the `ask` default, not command inspection.
+- Not exercised: Node 18, macOS/Linux. Full suite takes roughly 2 minutes here.
+
 ---
 
 # Part G: Phase 2 build spec — 0.6.0 "Team model"
