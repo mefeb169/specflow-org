@@ -51,3 +51,6 @@ Map written with evidence tags; repos registered; commands confirmed or explicit
 
 ## Escalate when
 Same-level instruction conflicts; a repo's purpose cannot be established; build/test needs credentials or services you lack; the repo has its own `.specify/` (record `speckit: repo-local` and ask how to treat cross-repo features).
+
+## When dispatched as a subagent
+Discover runs in the main session because it asks the user questions; only its per-repo profiling is delegated (`specflow:repo-profiler`, read-only). Do not run it as a team role.

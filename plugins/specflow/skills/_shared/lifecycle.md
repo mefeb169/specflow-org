@@ -63,3 +63,20 @@ If Spec Kit asks to create git branches via an extension, prefer `specflow branc
 proposed/defined -> specflow:product | specified -> specflow:ux first when the feature is UI (`ui: true`) and `ux.md` is missing or incomplete (`specflow status <id>` shows it), otherwise specflow:architect | designed -> specflow:architect | planned/implementing -> specflow:build |
 verifying -> specflow:verify | accepted -> specflow:product (acceptance walkthrough) | released/done -> specflow:flow.
 Only the role for the current stage is activated.
+
+## Team: stage -> role -> agent (`specflow dispatch <id>` computes this)
+
+| Stage (work leaving it) | Role | Agent | Default model |
+|---|---|---|---|
+| proposed, defined | product | `specflow:product` | opus |
+| specified, UI item with incomplete ux.md | ux | `specflow:ux` | opus |
+| specified (otherwise), designed | architect | `specflow:architect` | opus |
+| planned, implementing | lead (areas) or builder (one repo) | `specflow:lead` / `specflow:builder` | opus / sonnet |
+| verifying | verifier (spawns the independent reviewer per repo) | `specflow:verifier`, `specflow:independent-reviewer` | sonnet / opus |
+| accepted | product (acceptance walkthrough) | `specflow:product` | opus |
+| released, done | the PM | none | n/a |
+
+- **Lead rule:** at `planned`/`implementing` the packet names `lead` when the lead role is enabled and every repo of the item belongs to a lead (`team lead add <name> --repos a,b`); the lead plans its area and spawns one builder per repo. Otherwise it names `builder`, one repo per dispatch (`--repo` is required when the item has several; `repos_todo` lists the repos still to do in deploy order).
+- **Disabled roles:** ux is covered by the architect, lead by the builder; any other disabled role (for example verifier) is done by the PM itself (`role: pm`).
+- **Models** come from `specflow team show`; the PM passes the packet's `model` to the Agent tool, so a config change takes effect without editing agent files.
+- Subagents never talk to the user and never approve gates; `gate approve`, `init`, `upgrade --apply`, `install`, `uninstall`, `specify init`, `git push`, `gh pr create|merge` are denied by the hook when `agent_id` is present.

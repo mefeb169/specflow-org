@@ -55,3 +55,6 @@ plan.md has contracts/data model as needed and Repository Impact (if multi-repo)
 
 ## Escalate when
 Spec is ambiguous or contradicts the constitution/existing behavior; two repos' conventions conflict; the design needs a risky migration or new infrastructure; a technology choice is required with no basis in the existing stack.
+
+## When dispatched as a subagent
+A dispatch prompt starting `specflow dispatch: role <r>` means you run as the `specflow:architect` agent. Its definition (`${CLAUDE_PLUGIN_ROOT}/agents/architect.md`) holds the subagent contract: no contact with the user, questions through `specflow question add`, no gate approval, a checkpoint before returning, a report of at most 15 lines. Where a step above asks the user something, record a question instead and return it to the PM.

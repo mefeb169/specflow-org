@@ -422,3 +422,22 @@ test('P2-17. setup apply: unknown ids and invalid values are rejected and nothin
   ok(apply(fx.root, {}));
   fx.cleanup();
 });
+
+// ---- G7 skills ----
+const PLUGIN = path.resolve(AGENTS, '..');
+const read = (...p) => fs.readFileSync(path.join(PLUGIN, ...p), 'utf8');
+
+test('P2-18. skills: setup skill, PM-loop flow under 7 KB, subagent sections, lifecycle table, CLAUDE.md block line', () => {
+  const setupSkill = read('skills', 'setup', 'SKILL.md');
+  assert.match(setupSkill, /^---\nname: setup\n/);
+  assert.match(setupSkill, /setup questions --json/);
+  assert.match(setupSkill, /setup apply --answers/);
+  assert.match(setupSkill, /AskUserQuestion/);
+  const flow = read('skills', 'flow', 'SKILL.md');
+  assert.ok(Buffer.byteLength(flow) < 7000, `flow is ${Buffer.byteLength(flow)} bytes`);
+  for (const needle of ['specflow dispatch <id> --json', 'subagent_type', 'verbatim', 'question list --open --feature', 'decision list', 'gate approve', 'specflow:setup', 'team.communication']) assert.ok(flow.includes(needle), needle);
+  for (const s of ['product', 'ux', 'architect', 'build', 'verify', 'discover']) assert.match(read('skills', s, 'SKILL.md'), /## When dispatched as a subagent/, s);
+  const lc = read('skills', '_shared', 'lifecycle.md');
+  for (const a of ['specflow:product', 'specflow:ux', 'specflow:architect', 'specflow:lead', 'specflow:builder', 'specflow:verifier', 'Lead rule']) assert.ok(lc.includes(a), a);
+  assert.match(read('templates', 'workspace', 'claude-md-block.md'), /Only the PM \(main session\) talks to the user and approves gates/);
+});

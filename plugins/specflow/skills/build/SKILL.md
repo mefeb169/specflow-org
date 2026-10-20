@@ -54,3 +54,6 @@ All tagged tasks `[X]`; per-repo verification passes at current HEAD; no new ope
 
 ## Escalate when
 Requirement conflict or missing information; a contract/plan error; failing tests you cannot fix within scope; need for credentials, shared infrastructure, or migrations on real data; branch/dirty-repo problems.
+
+## When dispatched as a subagent
+A dispatch prompt starting `specflow dispatch: role <r>` means you run as the `specflow:builder` agent (or `specflow:lead`). Its definition (`${CLAUDE_PLUGIN_ROOT}/agents/builder.md`) holds the subagent contract: no contact with the user, questions through `specflow question add`, no gate approval, a checkpoint before returning, a report of at most 15 lines. Where a step above asks the user something, record a question instead and return it to the PM.

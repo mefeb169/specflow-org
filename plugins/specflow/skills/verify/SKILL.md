@@ -47,3 +47,6 @@ Every affected repo has passing evidence at its current HEAD, a passing review i
 
 ## Escalate when
 Acceptance criteria are untestable or contradictory; required test infrastructure is missing; a security issue needs a product decision; evidence cannot be produced without a shared environment.
+
+## When dispatched as a subagent
+A dispatch prompt starting `specflow dispatch: role <r>` means you run as the `specflow:verifier` agent. Its definition (`${CLAUDE_PLUGIN_ROOT}/agents/verifier.md`) holds the subagent contract: no contact with the user, questions through `specflow question add`, no gate approval, a checkpoint before returning, a report of at most 15 lines. Where a step above asks the user something, record a question instead and return it to the PM.

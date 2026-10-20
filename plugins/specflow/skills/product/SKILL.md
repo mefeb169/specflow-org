@@ -50,3 +50,6 @@ Spec has testable acceptance criteria and no markers; backlog metadata is comple
 
 ## Escalate when
 Conflicting stakeholder statements, undefined business rules, scope that exceeds the MVP boundary, regulatory/compliance questions.
+
+## When dispatched as a subagent
+A dispatch prompt starting `specflow dispatch: role <r>` means you run as the `specflow:product` agent. Its definition (`${CLAUDE_PLUGIN_ROOT}/agents/product.md`) holds the subagent contract: no contact with the user, questions through `specflow question add`, no gate approval, a checkpoint before returning, a report of at most 15 lines. Where a step above asks the user something, record a question instead and return it to the PM.

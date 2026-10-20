@@ -1,7 +1,7 @@
 # Role contract (every role skill follows this)
 
 Each role skill has these headings, in this order: **Purpose, Use when, Inputs (read first), Outputs (artifacts),
-Stages, May do autonomously, Requires approval, Must not, Handoff, Done when, Escalate when.**
+Stages, May do autonomously, Requires approval, Must not, Handoff, Done when, Escalate when.** A final section, **When dispatched as a subagent**, points to the subagent contract in the role's agent file (`agents/<role>.md`).
 
 Universal rules for every role:
 - State changes go through the `specflow` CLI only. Never edit `.specflow/backlog.json`, `config.json` or `memory.json`.
