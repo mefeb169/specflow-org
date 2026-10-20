@@ -566,3 +566,25 @@ test('P3-19. migration 0.7.0 from 0.6.0 is additive; chained from 0.4.0', () => 
   assert.equal(after.team.roles.release.enabled, false);
   u.cleanup();
 });
+
+// ---------- skills, docs, version ----------
+const REPO = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')), '..');
+const readRepo = (...p) => fs.readFileSync(path.join(REPO, ...p), 'utf8');
+const PLUGIN = ['plugins', 'specflow'];
+
+test('P3-20. skills, docs and workspace block describe delivery and release', () => {
+  const flow = readRepo(...PLUGIN, 'skills', 'flow', 'SKILL.md');
+  assert.ok(Buffer.byteLength(flow) < 7000, `flow is ${Buffer.byteLength(flow)} bytes`);
+  for (const re of [/deliver <id> --dry-run/, /deliver status/, /release plan/, /release run/, /release verify/, /never during a rework round/]) assert.match(flow, re);
+  assert.match(readRepo(...PLUGIN, 'skills', 'verify', 'SKILL.md'), /testing\.unit_required[\s\S]*blocking finding/);
+  assert.match(readRepo(...PLUGIN, 'skills', 'setup', 'SKILL.md'), /release\.steps/);
+  assert.match(readRepo(...PLUGIN, 'skills', '_shared', 'lifecycle.md'), /Delivery and release \(PM only\)/);
+  assert.match(readRepo(...PLUGIN, 'skills', '_shared', 'lifecycle.md'), /specflow:release-manager/);
+  assert.match(readRepo(...PLUGIN, 'templates', 'workspace', 'claude-md-block.md'), /Pushes, PRs and releases go through `specflow deliver` and `specflow release`, run by the PM\./);
+  const readme = readRepo('README.md');
+  assert.match(readme, /## Releasing with specflow/);
+  assert.doesNotMatch(readme.split('## Releasing with specflow')[1].split('## Updating')[0], /https?:\/\/|\.com\b/, 'neutral example: no real hosts');
+  assert.match(readRepo('CHANGELOG.md'), /## \[0\.7\.0\]/);
+  assert.match(readRepo('docs', 'architecture.md'), /A12\. Delivery and release pipelines/);
+  assert.match(readRepo(...PLUGIN, 'agents', 'release-manager.md'), /release step add/);
+});

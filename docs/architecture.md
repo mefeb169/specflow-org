@@ -189,6 +189,7 @@ Feature IDs: backlog IDs are `F-001`… and stay stable from the start. `spec_di
 | `specify init`, `specflow init`, `specflow branches create` | **ask** |
 | Source edits in a repo when no feature in that repo is `implementing` | `config.guards.source_edit_outside_implementing`: `ask` (default) / `deny` / `off` |
 | Destructive or outward-facing Bash (pattern list in config, see B5) | **ask** |
+| `specflow deliver` (push, PR create or update, merge), `specflow release run`, `specflow release verify` | **ask** in the main session; **denied** for subagents and unattended modes; `deliver status` and `deliver --dry-run` are free |
 | Failed verification | the stage cannot advance (CLI refuses); reported honestly |
 
 ## A9. Representative walkthrough: "Password reset via email" (frontend + backend)
@@ -219,3 +220,7 @@ Feature IDs: backlog IDs are `F-001`… and stay stable from the start. `spec_di
 
 ---
 
+
+## A12. Delivery and release pipelines (0.7.0)
+
+Two PM-only pipelines sit after `accepted`. **Delivery** (`specflow deliver`): from a verified state only (fresh passing evidence at HEAD, clean tree, the item's own branch, no open rework round or blocker), plain `git push -u origin <branch>`, then `gh pr view` to reuse an OPEN PR or `gh pr create` for the first one. A merged or closed PR for the branch is refused: one branch, one PR per repo, so rework updates the same PR. The result is recorded on the item (`delivery`) and as `delivery` and `merge` evidence. `gh` comes from `SPECFLOW_GH` when set (tests use a fake). **Release** (`specflow release`): config `release.steps` and `post_release` run in array order from each repo folder; steps of kind migrate or restart, and any step with approval `ask`, stop the run so the PM can confirm each one. Progress is kept on the item (`release_progress`), every run is evidence, and `released` needs every configured step to have passed when release by AI is on. The release role only proposes steps and writes rollback notes.

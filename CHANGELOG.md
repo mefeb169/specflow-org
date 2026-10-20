@@ -2,6 +2,20 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/). Versions follow the plugin version in `plugins/specflow/.claude-plugin/plugin.json`.
 
+## [0.7.0] - 2026-10-20
+Phase 3 of the team-model roadmap: delivery and release pipelines. A 0.6.0 workspace keeps working before `specflow upgrade --apply`.
+### Added
+- `deliver <id> [--dry-run]`: from a verified state only, pushes the item's branch (never `--force`) and opens or updates ONE pull request per repo with `gh`, in deploy order; refuses a merged or closed PR for the branch; records `delivery` on the item and `delivery` evidence. `deliver status <id>` refreshes PR states and records `merge` evidence once all are merged; `deliver merge <id>` works only in `push-pr-merge` mode after the acceptance gate.
+- Release configuration `release.steps`, `release.post_release`, `release.require_merged` with `release step add|rm|list` and `release set`.
+- `release plan <id>` (writes `release.md`, keeps the rollback notes), `release run <id> [--step name --again]` (steps without approval run in order and stop at the first that needs approval; progress, evidence, stops at the first failure), `release verify <id>` (post-release checks).
+- Release role `specflow:release-manager` (sonnet, enabled with `release.by_ai`): proposes steps, checks migrations, writes rollback notes; `dispatch` routes an accepted item with an approved acceptance gate to it, or to the PM. Setup asks `release.steps` when release by AI is on.
+- Guard: `deliver` (except `status` and `--dry-run`), `release run` and `release verify` ask in the main session, are denied unattended, and are denied for subagents.
+- Evidence kinds `delivery` and `merge`; upgrade migration `0.7.0`; `SPECFLOW_GH` selects the `gh` executable (used by tests).
+### Changed
+- Dispatch prompts for builder, lead and verifier carry a `Testing:` line (unit tests required, test data rules); the verify skill treats logic without tests as a blocking finding when unit tests are required.
+- Setup explanations for testing, release and graphify now describe what happens (graphify is still only recorded).
+- The flow skill covers delivery and release; the handoff file and `status <id>` show the delivery table; `released` needs every configured release step when release by AI is on.
+
 ## [0.6.0] - 2026-10-20
 Phase 2 of the team-model roadmap: roles as subagents. A 0.5.0 workspace keeps working before `specflow upgrade --apply`.
 ### Added

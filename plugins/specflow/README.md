@@ -25,14 +25,14 @@ Then open Claude Code in the workspace and say "set up specflow here". Updating 
 | Piece | What it is |
 |---|---|
 | Skills (`specflow:*`) | `specflow:flow` (the PM loop), `specflow:setup` (setup interview), `specflow:discover`, `specflow:product`, `specflow:ux`, `specflow:architect`, `specflow:build`, `specflow:verify`, plus the vendored `frontend-design` |
-| Agents (`specflow:*`) | team roles run as subagents dispatched by the PM: `product`, `architect`, `ux`, `lead`, `builder`, `verifier`, plus `independent-reviewer` and `repo-profiler` |
+| Agents (`specflow:*`) | team roles run as subagents dispatched by the PM: `product`, `architect`, `ux`, `lead`, `builder`, `verifier`, `release-manager`, plus `independent-reviewer` and `repo-profiler` |
 | Agents | `repo-profiler` (one per repo, parallel, read-only), `independent-reviewer` (fresh-context code/security/UI review) |
 | `specflow` CLI | The only writer of lifecycle state. Validates every stage change against real files and evidence |
 | Hooks | Session brief; guards for state files, gates and destructive commands; handoff refresh on PreCompact; validation and handoff refresh on stop |
 
 **Lifecycle:** `proposed > defined > specified > designed > planned > implementing > verifying > accepted > released > done`, one step forward at a time (backward with a reason). Entry criteria are checked by the CLI: a spec without open clarifications, a plan with a Repository Impact table for multi-repo features, tasks tagged `[repo:<name>]`, passing tests at each repo's current commit, a review, and for UI features a complete `ux.md` and a `ux-review`. Human gates: `spec`, `design`, `implement`, `acceptance`, `release` (which ones are required depends on `autonomy`: `guided`, `standard`, `autonomous`).
 
-**State** lives at the workspace root: `.specflow/` (backlog, config, product, workspace map, design system, decisions), Spec Kit's `specs/NNN-name/` (spec, plan, tasks, `ux.md`, `verification.md`). Your repositories are not merged or restructured; the framework only creates feature branches and commits in the repos a feature lists, and never pushes.
+**State** lives at the workspace root: `.specflow/` (backlog, config, product, workspace map, design system, decisions), Spec Kit's `specs/NNN-name/` (spec, plan, tasks, `ux.md`, `verification.md`). Your repositories are not merged or restructured; the framework only creates feature branches and commits in the repos a feature lists, and never pushes by itself: pushing, PRs and releases run only through `specflow deliver` and `specflow release`, started by the PM with your confirmation.
 
 ## UI / UX
 `specflow:ux` owns each UI feature's `ux.md` (flows, every screen state, copy, accessibility). *conform* mode (default for existing products) follows the design system already in code; *direction* mode (new product or an explicit redesign) runs the full `frontend-design` process and needs your approval of the visual direction. Visual checks only use tooling a repo already has (Playwright, Cypress, Storybook); otherwise the review is code-based plus a manual check, recorded honestly. Relax with `config.ux`: `{"design_gate_for_ui": false, "require_ux_review": false}`.

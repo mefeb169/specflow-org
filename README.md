@@ -113,6 +113,8 @@ Talk to Claude Code at the workspace root:
 | "also fix X" / "note that Y is broken" | `specflow issue add` (a bug, debt or chore item in the lite lane, linked to the current item); nothing grows the current scope silently |
 | a question the team needs answered | `specflow question add`; the answer is logged as a decision and never asked again |
 | "configure specflow" / first use | `specflow:setup`: a short interview (workflow, approvals, Git and PR policy, release, tests, models, team leads, update detail, graphify, milestone, slice size); answers go to `config.json` and the decision log, and are never asked twice |
+| "deliver it" / "open the PRs" | `specflow deliver`: pushes the item's branch and opens (or updates) one PR per repo after verification passed; you merge. Delivery mode is set in setup |
+| "release it" | `specflow release plan` writes `release.md` for you to follow; with release by AI on, the PM runs your configured steps one by one and asks before each risky one |
 | "this is too big" | `specflow slice add`: slices are releasable pieces of a feature, planned in the lite lane |
 
 Human gates (`spec`, `design`, `implement`, `acceptance`, `release`) show an approval prompt; no skill approves them for you. In `bypassPermissions`/`dontAsk` modes these actions are refused instead.
@@ -141,9 +143,10 @@ The Claude session you talk to is the **Project Manager (PM)**. It is the only r
 | lead (optional) | `specflow:lead` | opus | plans one area and spawns one builder per repo |
 | builder | `specflow:builder` | sonnet | implements one repo of one slice |
 | verifier | `specflow:verifier` | sonnet | runs verification, spawns the independent reviewer |
+| release (optional) | `specflow:release-manager` | sonnet | proposes release steps from your docs, checks migrations, writes rollback notes (never runs a deploy) |
 | reviewer, profiler | `independent-reviewer`, `repo-profiler` | opus, haiku | read-only review and repo profiling |
 
-The PM loop: `specflow dispatch <id> --json` names the agent, model and prompt for the item's stage; the PM spawns that agent, reads its short report, routes its questions (team questions to the role that owns the answer, user questions batched and checked against the decision log first), presents gates, and dispatches the next step. Roles never talk to the user: they write questions with `specflow question add` and checkpoint before returning. The hook denies `gate approve`, `init`, `upgrade --apply`, `install`, `uninstall`, `specify init`, `git push`, `gh pr create` and `gh pr merge` for subagents. Models come from `specflow team show`, so `specflow team set builder --model opus` takes effect at the next dispatch. `specflow:setup` asks about the team once, after `init`.
+The PM loop: `specflow dispatch <id> --json` names the agent, model and prompt for the item's stage; the PM spawns that agent, reads its short report, routes its questions (team questions to the role that owns the answer, user questions batched and checked against the decision log first), presents gates, and dispatches the next step. Roles never talk to the user: they write questions with `specflow question add` and checkpoint before returning. The hook denies `gate approve`, `init`, `upgrade --apply`, `install`, `uninstall`, `specify init`, `git push`, `gh pr create`, `gh pr merge`, `specflow deliver` and `specflow release run|verify` for subagents. Models come from `specflow team show`, so `specflow team set builder --model opus` takes effect at the next dispatch. `specflow:setup` asks about the team once, after `init`.
 
 ## Command reference
 
@@ -181,13 +184,34 @@ Every command accepts `--json`. `specflow help` prints this list.
 | `stage set <id> <stage> [--reason s]` | Advance one stage (entry criteria checked against real files and evidence) or move back with a reason |
 | `gate approve <id> <gate>` / `gate required <id>` | Record a human approval / list required gates |
 | `check tasks <id>` / `check size <id>` | Every task carries a registered `[repo:<name>]` tag / task and migration counts against the size limit (`config.slicing`, default 15 tasks and 1 migration; `feature set <id> size_waiver "<reason>"` waives it) |
-| `branches create <id>` | Create the feature branch in each affected repo (refuses dirty repos, never pushes) |
+| `deliver <id> [--dry-run]` / `deliver status <id>` / `deliver merge <id>` | After `accepted`: push the item's branch (never `--force`) and open or update ONE PR per repo with `gh`, only from fresh passing evidence at HEAD on a clean tree, never during a rework round. `status` refreshes PR states (all merged is recorded as evidence); `merge` only in `push-pr-merge` mode after the acceptance gate |
+| `release step add <name> --run c [--repo r --kind k --approval ask or none --timeout s --post]` / `release step rm <name> [--post]` / `release step list` / `release set --by-ai true or false --require-merged true or false` | The release configuration: steps (deploy, migrate, restart, smoke, other) run in order from the repo folder, post-release checks, whether the AI team may release |
+| `release plan <id>` / `release run <id> [--step name --again]` / `release verify <id>` | `plan` writes `release.md` (always); `run` (only with release by AI, PRs merged) runs steps without approval and stops at each step that needs it; `verify` runs the post-release checks at stage released |
+| `branches create <id>` | Create the feature branch in each affected repo (refuses dirty repos; pushing is `deliver`) |
 | `verify run <id> --repo r [--kind test\|build\|lint]` | Run the confirmed command and record evidence at the repo's HEAD |
 | `evidence add <id> --kind k --result pass\|fail --note s` | Record review, security, manual, ux-review, release evidence |
 | `install` / `uninstall` | Install or remove the plugin for a project (see above). Options: `--scope`, `--dir`, `--source`, `--fix-legacy`, `--remove-marketplace` |
 | `--version`, `help` | Version and usage |
 
 Lifecycle: `proposed > defined > specified > designed > planned > implementing > verifying > accepted > released > done`.
+
+## Releasing with specflow
+
+Delivery and release are separate, PM-only pipelines. Both ask for confirmation in the main session, are refused for subagents and in modes that cannot prompt, and never touch a repo that is not clean and verified.
+
+1. Verification passes and the item is `accepted`. `specflow deliver F-001 --dry-run` shows what would be pushed and which PRs would be created or updated; `specflow deliver F-001` does it. The same feature branch and the same PR are reused after rework; a merged or closed PR is never reopened or duplicated.
+2. You merge the PRs (or, in `push-pr-merge` mode, `specflow deliver merge F-001` after the acceptance gate). `specflow deliver status F-001` refreshes the PR states.
+3. `specflow release plan F-001` writes `specs/<dir>/release.md`: PRs, migrations, steps, post-release checks and a rollback section. With release by AI off, that file is your checklist.
+4. With release by AI on (`specflow release set --by-ai true`, or the setup interview), configure the steps once. A neutral example:
+
+```
+specflow release step add migrate-db --repo api --run "make migrate" --kind migrate
+specflow release step add deploy-api --repo api --run "make deploy" --kind deploy --approval ask --timeout 900
+specflow release step add smoke --run "./scripts/smoke.sh" --kind smoke --approval none
+specflow release step add health --run "./scripts/health.sh" --post
+```
+
+   `specflow release run F-001` runs steps whose approval is `none` in order and stops at the first one that needs approval (migrate and restart steps always do); run `specflow release run F-001 --step deploy-api` after confirming. A failed step stops the run and is retried by the next run; passed steps are skipped unless `--again`. When every step passed: `stage set F-001 released`, `specflow release verify F-001`, then `stage set F-001 done`. The release role (`specflow:release-manager`) can propose the steps from your repos' docs; the PM shows them to you and adds only what you confirm.
 
 ## Updating, uninstalling, migrating
 
@@ -217,7 +241,7 @@ More detail on what was verified and what was not: [docs/runtime.md](docs/runtim
 
 ## Status
 
-Public beta (0.6.0). Tested on Windows with Node 26 and Spec Kit 1.2.0. The CI workflow covers Ubuntu, macOS and Windows on Node 18 and 22 but has not run yet; macOS/Linux and Node 18 are untested. Known gaps are in the [plugin README](plugins/specflow/README.md).
+Public beta (0.7.0). Tested on Windows with Node 26 and Spec Kit 1.2.0. The CI workflow covers Ubuntu, macOS and Windows on Node 18 and 22 but has not run yet; macOS/Linux and Node 18 are untested. Known gaps are in the [plugin README](plugins/specflow/README.md).
 
 ## Development
 
