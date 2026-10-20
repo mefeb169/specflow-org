@@ -46,6 +46,7 @@ export function cmdStage(args, ctx) {
     throw new UserError(msg);
   }
   logHistory(f, 'stage', `${f.stage} -> ${target}${reason ? ` (${reason})` : ''}`);
+  if (target === 'accepted') for (const r of f.rework) if (!r.closed_at) r.closed_at = now();
   f.stage = target; f.revisit = null;
   ctx.saveBacklog();
   refreshHandoff(ctx, f);

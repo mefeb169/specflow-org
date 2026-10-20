@@ -407,3 +407,35 @@ test('P1-18. brief carries focus, parked, milestone, preferences, questions and 
   assert.match(out, /Open questions: 1/);
   fx.cleanup();
 });
+
+test('P1-19. rework rounds: start from verifying, keep branches, close on accepted, no new PR guidance', () => {
+  const fx = setup(); auto(fx.root);
+  const id = add(fx.root, 'Reworked');
+  linkSpec(fx.root, id, { 'spec.md': '# s\n', 'tasks.md': '- [x] T1 [repo:backend] done\n' });
+  patchBacklog(fx.root, (b) => { const f = b.features[0]; f.stage = 'verifying'; f.branches = { backend: 'feat-x' }; f.gates.acceptance = { approved_at: 'x', by: 'human', note: '' }; });
+  assert.match(cli(fx.root, 'rework', 'start', id).err, /--reason required/);
+  const r = ok(cli(fx.root, 'rework', 'start', id, '--reason', 'reviewer found a missing guard'));
+  assert.match(r.out, /round 1/);
+  assert.match(r.out, /Do not push or open a new PR/);
+  let f = readBacklog(fx.root).features[0];
+  assert.deepEqual([f.stage, f.branches, f.rework.length, f.rework[0].n, f.rework[0].closed_at, f.gates.acceptance], ['implementing', { backend: 'feat-x' }, 1, 1, null, null]);
+  assert.match(cli(fx.root, 'status', id).out, /round 1 open/);
+  assert.match(fs.readFileSync(path.join(specDir(fx.root), 'handoff.md'), 'utf8'), /stage implementing, rework round 1/);
+  assert.match(cli(fx.root, 'rework', 'start', id, '--reason', 'again').err, /from verifying or accepted/);
+  // back to verifying, then accepted closes the round
+  ok(cli(fx.root, 'stage', 'set', id, 'verifying'));
+  ok(cli(fx.root, 'repo', 'set', 'backend', '--confirm'));
+  ok(cli(fx.root, 'verify', 'run', id, '--repo', 'backend'));
+  ok(cli(fx.root, 'evidence', 'add', id, '--kind', 'review', '--result', 'pass', '--note', 'ok'));
+  ok(cli(fx.root, 'stage', 'set', id, 'accepted'));
+  f = readBacklog(fx.root).features[0];
+  assert.ok(f.rework[0].closed_at);
+  assert.match(cli(fx.root, 'status', id).out, /none open, 1 round/);
+  // second round from accepted, then explicit close
+  ok(cli(fx.root, 'rework', 'start', id, '--reason', 'owner request'));
+  assert.equal(readBacklog(fx.root).features[0].rework.length, 2);
+  ok(cli(fx.root, 'rework', 'close', id));
+  assert.ok(readBacklog(fx.root).features[0].rework[1].closed_at);
+  assert.match(cli(fx.root, 'rework', 'close', id).err, /no open rework round/);
+  fx.cleanup();
+});

@@ -1,4 +1,5 @@
 // Session flow: focus, interrupts, milestones.
+import { clearDownstreamGates } from '../lib/gates.mjs';
 import { UserError, currentMilestone, getFeature, handoffRel, logHistory } from '../lib/state.mjs';
 import { currentBranch, isDirty } from '../lib/git.mjs';
 import { repoDir } from '../lib/state.mjs';
@@ -89,6 +90,36 @@ export function cmdCheckpoint(args, ctx) {
   ctx.saveBacklog();
   const file = writeHandoff(ctx, f);
   emit({ id: f.id, handoff: file, checkpoint: f.checkpoint }, `${f.id}: checkpoint saved; handoff at ${file}`);
+}
+
+export function cmdRework(args, ctx) {
+  const [sub, id] = args._;
+  const f = getFeature(ctx, need(id, 'usage: rework start <id> --reason s | rework close <id>'));
+  const open = f.rework.find((r) => !r.closed_at);
+  if (sub === 'start') {
+    const reason = need(typeof args.flags.reason === 'string' ? args.flags.reason : '', '--reason required');
+    if (!['verifying', 'accepted'].includes(f.stage)) throw new UserError(`rework starts from verifying or accepted; ${id} is at ${f.stage}`);
+    if (open) open.closed_at = now();
+    const cleared = clearDownstreamGates(f, 'implementing');
+    const round = { n: f.rework.length + 1, reason, at: now(), closed_at: null };
+    f.rework.push(round);
+    f.revisit = { stage: 'implementing', reason };
+    logHistory(f, 'stage', `${f.stage} -> implementing (rework round ${round.n}: ${reason}); cleared gates: ${cleared.join(', ') || 'none'}`);
+    f.stage = 'implementing';
+    ctx.saveBacklog();
+    refreshHandoff(ctx, f);
+    return emit({ id, round, cleared_gates: cleared }, `${id}: rework round ${round.n} started, back at implementing (cleared gates: ${cleared.join(', ') || 'none'}).
+Fix on the same branch(es). Do not push or open a new PR for the rework. Re-run verify when done.`);
+  }
+  if (sub === 'close') {
+    if (!open) throw new UserError(`${id} has no open rework round`);
+    open.closed_at = now();
+    logHistory(f, 'link', `rework round ${open.n} closed`);
+    ctx.saveBacklog();
+    refreshHandoff(ctx, f);
+    return emit({ id, round: open }, `${id}: rework round ${open.n} closed`);
+  }
+  throw new UserError('usage: rework start <id> --reason s | rework close <id>');
 }
 
 export function cmdMilestone(args, ctx) {

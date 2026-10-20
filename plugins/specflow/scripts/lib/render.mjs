@@ -80,7 +80,7 @@ export function featureDetail(ctx, f) {
   });
   const uxFailures = uxCheck(ctx, f);
   const slices = childrenOf(ctx, f.id).map((k) => ({ id: k.id, title: k.title, stage: k.stage }));
-  return { ...statusRow(ctx, f), kind: f.kind, lane: f.lane, parent: f.parent, slices, ui: isUi(ctx, f), ui_evidence: uiEvidence(ctx, f), ux: { required: isUi(ctx, f), complete: uxFailures.length === 0, failures: uxFailures }, spec_dir: f.spec_dir, branches: f.branches, gates: f.gates, required_gates: requiredGates(ctx, f), pending_gates: requiredGates(ctx, f).filter((g) => !f.gates[g]), deps: f.deps, blockers: f.blockers, held_by: depsStatus(ctx, f), tasks: tasks && { total: tasks.total, done: tasks.done, per_repo: tasks.perRepo }, evidence, revisit: f.revisit };
+  return { ...statusRow(ctx, f), kind: f.kind, lane: f.lane, parent: f.parent, slices, rework: { open: f.rework.find((r) => !r.closed_at)?.n ?? null, total: f.rework.length }, ui: isUi(ctx, f), ui_evidence: uiEvidence(ctx, f), ux: { required: isUi(ctx, f), complete: uxFailures.length === 0, failures: uxFailures }, spec_dir: f.spec_dir, branches: f.branches, gates: f.gates, required_gates: requiredGates(ctx, f), pending_gates: requiredGates(ctx, f).filter((g) => !f.gates[g]), deps: f.deps, blockers: f.blockers, held_by: depsStatus(ctx, f), tasks: tasks && { total: tasks.total, done: tasks.done, per_repo: tasks.perRepo }, evidence, revisit: f.revisit };
 }
 
 export function warnings(ctx) {
