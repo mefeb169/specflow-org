@@ -376,3 +376,110 @@ Docs: README command reference and "Daily use" rows (interrupt, resume, checkpoi
 - Fixed in review: the brief's trust line ("State is in the specflow CLI, not memory") had the lowest priority, so it was the first line cut when over budget; it now outranks optional lines, with a test assertion (P1-18). Merged three duplicate `state.mjs` imports in `commands/flow.mjs`.
 - Noted for later (not changed): with no current milestone, `status` still lists every non-done item (126 rows on Wali). Setting a milestone fixes it; Phase 2's setup interview should ask for one, or `status` could collapse `proposed` items by default.
 - Stopped after Phase 1 as the owner asked.
+
+---
+
+# Part G: Phase 2 build spec — 0.6.0 "Team model"
+
+Written for the implementing agent (Sonnet). Read this part, Part C1/C2 for intent, and the Phase 1 code it builds on. Locked decisions: Part E (team depth configurable, Opus plans / Sonnet builds, release and graphify asked at setup).
+
+## G0. Rules for this build
+- Continue on branch `task-5` (not merged yet). Commit after each step G2 to G8 with a conventional message ending with the line `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`. Never push.
+- Same code rules as F0: zero dependencies, `emit()` for output, `UserError`, defaults read through helpers so a 0.5.0 config needs no rewrite on read. New tests in `tests/phase2.test.mjs`. `npm test` passes after every step. The full suite takes about 100 s: run single test files while iterating and the full suite before each commit; keep tool calls short.
+- Do not touch `D:\Work\Wali_app`. Stop after Phase 2.
+
+## G1. Verified platform facts (Claude Code docs, checked 2026-10-20). Design on these, not on assumptions
+- Plugin agents (`agents/*.md`) honor `model` (sonnet, opus, haiku, inherit, or a full id) and `tools`/`disallowedTools`; they ignore `hooks`, `mcpServers`, `permissionMode`.
+- The caller can override the model per call (Agent tool `model` parameter). This is how config-chosen models are applied.
+- Subagents can spawn subagents (up to 3 levels). Omit `Agent` from `tools` to prevent it.
+- `AskUserQuestion` is not available to subagents. Permission prompts still reach the user.
+- Hook input carries `agent_id` and `agent_type` when the tool call comes from inside a subagent.
+- `${CLAUDE_PLUGIN_ROOT}` is expanded in agent and skill Markdown bodies (not in the Bash environment).
+- `PreCompact` cannot inject context (Phase 1 only writes the handoff there, which is correct).
+
+## G2. Team configuration
+Config key `team` (defaults via a helper `teamCfg(ctx)`; written by the migration):
+```json
+"team": {
+  "roles": {
+    "product":   { "enabled": true,  "model": "opus" },
+    "architect": { "enabled": true,  "model": "opus" },
+    "ux":        { "enabled": "<true when any repo has ui: true>", "model": "opus" },
+    "lead":      { "enabled": false, "model": "opus" },
+    "builder":   { "enabled": true,  "model": "sonnet" },
+    "verifier":  { "enabled": true,  "model": "sonnet" },
+    "reviewer":  { "enabled": true,  "model": "opus" },
+    "profiler":  { "enabled": true,  "model": "haiku" }
+  },
+  "leads": [],
+  "locked": [],
+  "communication": "short",
+  "workflow": "feature"
+}
+```
+`leads` entries look like `{ "name": "backend", "repos": ["wali-backend"] }`. `communication` is short | normal | detailed (how much the PM tells the user); `workflow` is feature | task.
+Also new config keys recorded now, used by later phases: `delivery: { mode: "push-pr", target_branch: null, pr_tool: "gh" }` (modes `commit`, `push-pr`, `push-pr-merge`), `release: { by_ai: false }`, `testing: { unit_required: true, data_rules: "" }`, `tools: { graphify: false }`.
+CLI:
+- `team` / `team show`: roles (enabled, model, agent name), leads, communication, workflow.
+- `team set <role> [--model m] [--enabled true|false]` (adds the role to `locked`); `team set --communication short|normal|detailed`; `team set --workflow feature|task`.
+- `team lead add <name> --repos a,b` / `team lead rm <name>`. Adding the first lead enables the `lead` role; removing the last disables it. A repo belongs to at most one lead.
+- `team generate`: re-derives defaults from the registered repos (ux enabled when any repo has `ui: true`). With 4 or more repos it prints a suggestion of one lead per repo but does not enable it. Never changes a role listed in `locked`.
+Validate: known roles; model one of `opus|sonnet|haiku|inherit|fable` or a string starting with `claude-`; lead repos registered and unique.
+
+## G3. Role agents
+New plugin agents under `plugins/specflow/agents/`: `product.md`, `architect.md`, `ux.md`, `lead.md`, `builder.md`, `verifier.md`. Keep `independent-reviewer.md` (role `reviewer`) and `repo-profiler.md` (role `profiler`). Each new file:
+- Frontmatter: `name`, `description` ("specflow team role, dispatched by the specflow PM; not for direct use"), `model` (the G2 default), `tools` without `Agent` except for `lead` (spawns builders) and `verifier` (spawns the independent reviewer).
+- Body, under about 40 lines: "First read `${CLAUDE_PLUGIN_ROOT}/skills/<role skill>/SKILL.md` and `${CLAUDE_PLUGIN_ROOT}/skills/_shared/role-contract.md` and follow them." Then the **subagent contract**:
+  1. You never talk to the user. Anything you need from the user or another role: `specflow question add "<q>" --feature <id> --to user|product|architect|ux|build|verify`, then continue with what you can, or stop if blocked.
+  2. Never run `gate approve`, `init`, `upgrade --apply`, `install`, `uninstall`, `git push` or `gh pr` (the hook denies them for subagents).
+  3. Start from the handoff file and the inputs in the dispatch prompt; read other files only when needed.
+  4. Before returning: `specflow checkpoint <id> --next "<next step>" --note "<what you did>"`.
+  5. Return a report of at most 15 lines: outcome, artifacts changed (paths), CLI state changes, open questions (ids), blockers (ids), recommended next step. No file dumps.
+- `lead.md`: for its area's repos, reads plan and tasks, writes `specs/<dir>/lead-<name>.md` (ordered steps, files to touch, pitfalls, test plan; under about 80 lines), then spawns one `specflow:builder` per repo of its area with that file as input (model from `specflow team show --json`), collects their reports, runs `specflow verify run` per repo, and returns one report.
+- `builder.md`: ONE repo per dispatch, only that repo's `[repo:<name>]` tasks.
+
+## G4. Dispatch packets
+`specflow dispatch <id> [--role r] [--repo name] [--question Q-n] [--json]`: deterministic, no AI. Gives the PM what it needs to spawn the right agent:
+- `role`: default from the stage routing (same source as `nextAction`). UI items at `specified` with incomplete ux.md go to `ux`. At `planned`/`implementing`: `lead` when the item's repos are covered by an enabled lead, otherwise `builder`; a multi-repo builder dispatch requires `--repo`, and the output lists the repos still to do in deploy order.
+- `agent` (`specflow:<agent file name>`), `model` (team config), `enabled`. When the role is disabled, name who covers it: ux → architect, lead → builder, verifier → the PM runs verify itself.
+- `prompt`: compact text (under 1,200 characters) to pass verbatim as the Agent prompt: id, title, kind, lane, stage, rework round, repo (builder), handoff path, spec dir and which artifacts exist, open questions addressed to this role (`--question` focuses on one), the `team.communication` level, and "Follow the subagent contract in your agent definition."
+- Refuse for done or dropped items. Log `dispatch <role>` in the item history.
+
+## G5. Guard: PM-only actions
+In `lib/guard.mjs` `decide()`: when `input.agent_id` is present (call from inside a subagent), **deny** `gate approve`, `init`, `upgrade --apply`, `install`, `uninstall`, `specify init`, `git push`, `gh pr create`, `gh pr merge`, with the reason "Only the specflow PM (main session) may do this; return it to the PM in your report." Everything else unchanged. Tests through the existing `hook()` helper with and without `agent_id`.
+
+## G6. Setup interview
+- `specflow setup questions [--json]`: the interview as data. Each question has `id`, plain-English `text`, `options`, `default` derived from the workspace (scan, config, git), and `why` (one line). In order:
+  1. `workflow`: feature by feature or task by task? [feature]
+  2. `autonomy`: which approvals: guided (all), standard (spec, implement, acceptance, release, plus design when risky), autonomous (acceptance, release)? [standard]
+  3. `delivery.mode`: after review passes: commit only / push and open PRs (you merge) / push, open and merge PRs? [push-pr]
+  4. `delivery.target_branch`: which branch PRs go to? [the repos' current branch when all agree, else none]
+  5. `release.by_ai`: should the AI team also release and deploy? [no] (yes is recorded now; Phase 3 configures the release team)
+  6. `testing.unit_required`: require unit tests for new logic? [yes]. `testing.data_rules`: rules for test data, for example "use yopmail.com addresses"? [none]
+  7. `models.planning` / `models.building`: [opus / sonnet]. Planning applies to product, architect, ux, lead, reviewer; building to builder, verifier.
+  8. `team.leads`: use team leads per area? [no; the `why` suggests yes with 4+ repos]
+  9. `team.communication`: short / normal / detailed updates? [short]
+  10. `tools.graphify`: use the graphify code graph (AST-only, no AI) for code search? [yes when `graphify` is on PATH, else no; tests stub detection with an env var]
+  11. `milestone`: current milestone name, if any [none; when more than 30 items are open the `why` says the status list will be long without one]
+  12. `slicing`: slice limit [15 tasks / 1 migration]
+- `specflow setup apply --answers <file.json>`: validates and writes every given answer (partial is fine) to config, logs each as a decision (`scope: project`, `by: user`, question text as the question), prints a short summary. Unknown ids or invalid values: `UserError` listing them, nothing written.
+- `specflow setup status`: which questions are answered (from the decisions log) and which are on defaults.
+
+## G7. Skills
+- New skill `skills/setup/SKILL.md` (`specflow:setup`): runs after `init` + discover, or on "configure specflow". `setup questions --json` → skip what `setup status` shows as answered → ask the rest with AskUserQuestion in batches of up to 4, plain English, recommended default first → write the answers file to a temp folder → `setup apply` → show `team show`. Never asks again what the decisions log answers.
+- Rewrite [flow](../plugins/specflow/skills/flow/SKILL.md) as the **PM loop**: brief → focus → `dispatch <id> --json` → spawn the agent (`subagent_type` = `agent`, `model` = `model`, prompt verbatim) → read its report → `question list --open --feature <id>`: role questions are routed by dispatching that role with `--question`; user questions are batched (check `decision list`/`pref list` first, never re-ask) and answered with `question answer` → gates are presented and approved by the PM in the main session only → next dispatch. The PM does no role work itself (no specs, plans or code), except when the dispatch packet says a disabled role falls back to the PM. Communication follows `team.communication`. Run `specflow:setup` when `setup status` shows nothing answered. Keep it under about 7 KB.
+- Each role skill (product, ux, architect, build, verify, discover) gets a short "When dispatched as a subagent" section that points to the subagent contract in its agent file (no duplicated text).
+- [_shared/lifecycle.md](../plugins/specflow/skills/_shared/lifecycle.md): stage → role → agent table and the lead routing rule.
+- Workspace CLAUDE.md block: one line "Only the PM (main session) talks to the user and approves gates; team roles run as subagents via `specflow dispatch`."
+
+## G8. Migration, lean status, docs, release
+- Migration `0.6.0`: adds `team` (ux enabled from the repos), `delivery`, `release`, `testing`, `tools`; additive only. Version 0.6.0 in plugin.json and package.json.
+- Lean `status` (from the Phase 1 review): when no milestone is set and more than 30 items are open, the list shows only items past `proposed`, plus one line `… and N proposed items (status --all, or set a milestone)`.
+- README (team, dispatch, setup commands; a short "How the team works" section), CHANGELOG `[0.6.0]`, docs/architecture.md (roles as subagents, dispatch, PM-only guard).
+- One eval `pm-dispatches-role`: fixture with a feature at `defined`; prompt "work on F-001"; grader: the Agent tool was used with `specflow:product` (tool_used). Not run (calls the model).
+
+## G9. Acceptance criteria (Phase 2)
+1. `npm test` passes; `tests/phase2.test.mjs` covers: team defaults and ux derivation; team set/lock, lead add/rm; team validation; dispatch routing for every stage (ux before architect, lead vs builder, `--repo` required for multi-repo builders, disabled-role fallback, refused for done/dropped); prompt under 1,200 chars; guard denies PM-only actions for `agent_id` calls and leaves the main session unchanged; setup questions defaults; setup apply partial/invalid/decision logging; setup status; migration 0.6.0 from 0.5.0 and chained from 0.4.0; lean status rule.
+2. `claude plugin validate plugins/specflow` passes with the new agents and skill.
+3. README, HELP, skills and agents describe the same commands; version 0.6.0 everywhere.
+4. Implementation Log: append a `### Phase 2 (0.6.0)` section like Phase 1's.
