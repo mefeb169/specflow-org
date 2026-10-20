@@ -14,8 +14,10 @@ const NON_SOURCE = ['specs', ...STATE_DIRS, '.specify', '.claude'];
 // Actions only the PM (main session) may take. Hook input carries agent_id when the call comes from inside a subagent.
 // `deliver status` and `deliver ... --dry-run` only read, so they are not guarded.
 const DELIVER = /(?:specflow|sflow|sdlc)(?:\.mjs)?["']?\s+deliver\b(?!\s+status\b)(?![^\n]*--dry-run)/i;
+const RELEASE = /(?:specflow|sflow|sdlc)(?:\.mjs)?["']?\s+release\s+(run|verify)\b/i;
 const PM_ONLY = [
   DELIVER,
+  RELEASE,
   /(?:specflow|sflow|sdlc)(?:\.mjs)?["']?\s+(?:gate\s+approve|init|upgrade\s+--apply|install|uninstall)\b/i,
   /\bspecify\s+init\b/i,
   /\bgit\s+(?:-C\s+\S+\s+)?push\b/i,
@@ -76,6 +78,15 @@ export function decide({ root, config, backlog, input, cwd }) {
     if (DELIVER.test(cmd)) {
       const m = cmd.match(/deliver\s+(merge\s+)?(\S+)/i);
       return gate(`${m && m[1] ? 'Merging' : 'Pushing branches and opening or updating'} pull requests for ${m ? m[2] : 'the item'} (specflow deliver). Outward-facing: confirm.`);
+    }
+    const rl = cmd.match(RELEASE);
+    if (rl) {
+      const verify = rl[1].toLowerCase() === 'verify';
+      const rc = config.release || {};
+      const one = cmd.match(/--step\s+(\S+)/);
+      const list = verify ? (rc.post_release || []) : (rc.steps || []).filter((s) => s.approval === 'none' && !['migrate', 'restart'].includes(s.kind));
+      const names = one ? [one[1]] : list.map((s) => s.name);
+      return gate(`Release ${verify ? 'post-release checks' : 'steps'} run commands against real systems: ${names.join(', ') || '(none configured)'}. Confirm.`);
     }
     if (/(?:specflow|sflow|sdlc)(?:\.mjs)?["']?\s+(init|branches\s+create|upgrade\s+--apply|install|uninstall)\b/i.test(cmd) || /\bspecify\s+init\b/i.test(cmd)) {
       return gate('Framework/Spec Kit setup, install/uninstall or branch creation changes the workspace; please confirm.');

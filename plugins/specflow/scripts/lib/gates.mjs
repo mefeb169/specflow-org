@@ -3,6 +3,7 @@ import path from 'node:path';
 import { AUTONOMY_GATES, DEP_MIN_STAGE, GATES, GATE_BEFORE, GATE_STAGE, STAGES, UX_SECTIONS, stageIdx } from './lifecycle.mjs';
 import { isContainer, isUi, liteGates, repoDir, slicingCfg, specDirAbs, uxConfig } from './state.mjs';
 import { headSha, isGitRepo } from './git.mjs';
+import { releaseCfg } from './team.mjs';
 import { latestEvidence, readEvidence } from './verify.mjs';
 
 const readIf = (file) => (file && fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : null);
@@ -188,6 +189,9 @@ export function checkEntry(ctx, f, target) {
     case 'released': {
       const ev = readEvidence(ctx, f);
       need(ev.some((e) => e.kind === 'release' && e.result === 'pass'), 'no release evidence (specflow evidence add --kind release --result pass)');
+      // With AI releasing, every configured step must have passed (progress is recorded by `release run`).
+      const rc = releaseCfg(ctx);
+      if (rc.by_ai) for (const s of rc.steps) need(f.release_progress?.[s.name]?.result === 'pass', `release step "${s.name}" has not passed (specflow release run ${f.id})`);
       break;
     }
     case 'done': {
