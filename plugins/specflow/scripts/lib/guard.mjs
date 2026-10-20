@@ -12,7 +12,10 @@ const STATE_DIRS = ['.specflow', '.sdlc'];
 const NON_SOURCE = ['specs', ...STATE_DIRS, '.specify', '.claude'];
 
 // Actions only the PM (main session) may take. Hook input carries agent_id when the call comes from inside a subagent.
+// `deliver status` and `deliver ... --dry-run` only read, so they are not guarded.
+const DELIVER = /(?:specflow|sflow|sdlc)(?:\.mjs)?["']?\s+deliver\b(?!\s+status\b)(?![^\n]*--dry-run)/i;
 const PM_ONLY = [
+  DELIVER,
   /(?:specflow|sflow|sdlc)(?:\.mjs)?["']?\s+(?:gate\s+approve|init|upgrade\s+--apply|install|uninstall)\b/i,
   /\bspecify\s+init\b/i,
   /\bgit\s+(?:-C\s+\S+\s+)?push\b/i,
@@ -69,6 +72,10 @@ export function decide({ root, config, backlog, input, cwd }) {
     const g = cmd.match(/(?:specflow|sflow|sdlc)(?:\.mjs)?["']?\s+gate\s+approve\s+(\S+)\s+(\S+)/i);
     if (g || /(?:specflow|sflow|sdlc)(?:\.mjs)?["']?\s+gate\s+approve\b/i.test(cmd)) {
       return gate(g ? `Human approval of gate "${g[2]}" for ${g[1]}. Only approve if you reviewed the artifacts.` : 'Human approval of a lifecycle gate.');
+    }
+    if (DELIVER.test(cmd)) {
+      const m = cmd.match(/deliver\s+(merge\s+)?(\S+)/i);
+      return gate(`${m && m[1] ? 'Merging' : 'Pushing branches and opening or updating'} pull requests for ${m ? m[2] : 'the item'} (specflow deliver). Outward-facing: confirm.`);
     }
     if (/(?:specflow|sflow|sdlc)(?:\.mjs)?["']?\s+(init|branches\s+create|upgrade\s+--apply|install|uninstall)\b/i.test(cmd) || /\bspecify\s+init\b/i.test(cmd)) {
       return gate('Framework/Spec Kit setup, install/uninstall or branch creation changes the workspace; please confirm.');

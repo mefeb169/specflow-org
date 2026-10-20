@@ -19,7 +19,7 @@ export const DEP_TYPES = ['requires', 'technical', 'after', 'related'];
 // Minimum stage a dependency must have reached for each blocking dep type.
 export const DEP_MIN_STAGE = { requires: 'accepted', technical: 'designed' };
 
-export const EVIDENCE_KINDS = ['test', 'build', 'lint', 'review', 'security', 'manual', 'analyze', 'release', 'post-release', 'ux-review'];
+export const EVIDENCE_KINDS = ['test', 'build', 'lint', 'review', 'security', 'manual', 'analyze', 'release', 'post-release', 'ux-review', 'delivery', 'merge'];
 
 // UI / UX support
 export const UI_STACK = ['react', 'next', 'vue', 'nuxt', '@angular/core', 'svelte', 'react-native', 'expo', 'dart/flutter', 'swift'];

@@ -20,6 +20,7 @@ export function cmdStatus(args, ctx) {
       ...Object.entries(d.ui_evidence).map(([r, u]) => `ui evidence ${r}: design system ${u.design_system.length ? u.design_system.join(', ') : 'NONE found'}; visual tools: ${u.visual_test_tools.join(', ') || 'none'}`),
       d.tasks ? `tasks: ${d.tasks.done}/${d.tasks.total}` : '',
       ...d.evidence.map((e) => `evidence ${e.repo}: ${e.last ? `${e.last.result} @${String(e.last.sha).slice(0, 8)} ${e.fresh ? '(fresh)' : '(STALE vs HEAD ' + String(e.head).slice(0, 8) + ')'}` : 'none'}`),
+      ...Object.entries(d.delivery).map(([r, x]) => `delivery ${r}: ${x.pr_url} (${x.pr_state})`),
       ...d.held_by.map((h) => `held by: ${h}`),
       ...d.blockers.filter((b) => b.open).map((b) => `blocker ${b.id} [${b.kind}]: ${b.text}`),
       `next: ${d.next}`,

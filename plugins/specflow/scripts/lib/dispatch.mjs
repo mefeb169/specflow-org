@@ -1,7 +1,7 @@
 // Dispatch packets: what the PM needs to spawn the right team agent for a work item. Deterministic, no AI.
 import fs from 'node:fs';
 import path from 'node:path';
-import { UserError, handoffRel, isContainer, isUi, specDirAbs } from './state.mjs';
+import { UserError, handoffRel, inDeployOrder, isContainer, isUi, specDirAbs } from './state.mjs';
 import { checkTasks, uxCheck } from './gates.mjs';
 import { ROLE_AGENT, ROLE_FALLBACK, ROLE_TARGET, TEAM_ROLES, leadOf, teamCfg } from './team.mjs';
 
@@ -35,8 +35,7 @@ export function resolveRole(team, role) {
 /** Repos of the item still to build, in deploy order (repos without any task yet count as to do). */
 export function reposTodo(ctx, f) {
   const per = checkTasks(ctx, f).perRepo;
-  const order = ctx.config.repos.map((r, i) => ({ name: r.name, key: r.deploy_order ?? 1e6 + i }));
-  return f.repos.filter((n) => !per[n] || per[n].done < per[n].total).sort((a, b) => order.find((x) => x.name === a).key - order.find((x) => x.name === b).key);
+  return inDeployOrder(ctx, f.repos.filter((n) => !per[n] || per[n].done < per[n].total));
 }
 
 function pickRepo(ctx, f, flag, role, team) {

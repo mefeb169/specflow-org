@@ -73,6 +73,8 @@ export function normalizeFeature(f) {
   f.size_waiver ??= null;
   f.checkpoint ??= null;
   f.dropped ??= null;
+  f.delivery ??= {};
+  f.release_progress ??= {};
   return f;
 }
 
@@ -152,4 +154,10 @@ export function logHistory(f, event, detail) {
 
 export function specDirAbs(ctx, f) {
   return f.spec_dir ? path.resolve(ctx.root, f.spec_dir) : null;
+}
+
+/** Repo names sorted by deploy_order (repos without one keep their registered order, after the numbered ones). */
+export function inDeployOrder(ctx, names) {
+  const key = (n) => { const i = ctx.config.repos.findIndex((r) => r.name === n); return ctx.config.repos[i]?.deploy_order ?? 1e6 + i; };
+  return [...names].sort((a, b) => key(a) - key(b));
 }

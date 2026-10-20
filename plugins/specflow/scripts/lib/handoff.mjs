@@ -51,6 +51,8 @@ export function renderHandoff(ctx, f) {
   L.push('## Open blockers', ...lastN(f.blockers.filter((b) => b.open), (b) => `- ${b.id} [${b.kind}] ${oneLine(b.text)}`));
   L.push('## Open questions', ...lastN(ctx.backlog.questions.filter((q) => q.status === 'open' && q.feature === f.id), (q) => `- ${q.id} (to ${q.to}) ${oneLine(q.text)}`));
   L.push('## Recent decisions', ...lastN(ctx.memory.decisions.filter((d) => d.scope === f.id || d.scope === 'project'), (d) => `- ${d.id} ${oneLine(d.question)} -> ${oneLine(d.answer)}`));
+  const delivered = Object.entries(f.delivery || {});
+  if (delivered.length) L.push('## Delivery', ...delivered.map(([r, d]) => `- ${r}: ${d.pr_url} (${d.pr_state})`));
   L.push('## Artifacts');
   const dir = specDirAbs(ctx, f);
   const links = dir ? ['spec.md', 'plan.md', 'tasks.md', 'verification.md', 'ux.md'].filter((n) => fs.existsSync(path.join(dir, n))).map((n) => `- ${f.spec_dir}/${n}`) : [];
