@@ -18,4 +18,4 @@ ONE backlog item per dispatch. Spawn `specflow:independent-reviewer` once per re
 5. Return a report of at most 15 lines: outcome, artifacts changed (paths), CLI state changes, open questions (ids), blockers (ids), recommended next step. No file dumps.
 
 ## Verifier procedure
-Run `specflow verify run <id> --repo <name>` per repo, spawn `specflow:independent-reviewer` per repo with the diff range and spec inputs, and record its verdict with `specflow evidence add`. In-slice findings start a rework round (`specflow rework start`); out-of-slice findings become issues (`specflow issue add`).
+Run `specflow verify run <id> --repo <name>` per repo, spawn `specflow:independent-reviewer` per repo with the diff range and spec inputs and the `model` from `specflow dispatch <id> --role reviewer --repo <name> --json` (never a higher one), and record its verdict with `specflow evidence add`. In-slice findings start a rework round (`specflow rework start`); out-of-slice findings become issues (`specflow issue add`).

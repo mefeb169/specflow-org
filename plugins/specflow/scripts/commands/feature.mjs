@@ -3,6 +3,7 @@ import path from 'node:path';
 import { UserError, getFeature, normalizeFeature, getRepo, logHistory, now, posix, repoDir } from '../lib/state.mjs';
 import { BLOCKER_KINDS, DEP_TYPES, GATES, LANES, PRIORITIES, RISKS, stageIdx } from '../lib/lifecycle.mjs';
 import { emit, need, csv, checkRepos } from './io.mjs';
+import { COMPLEXITY } from '../lib/models.mjs';
 
 export function cmdRepo(args, ctx) {
   const [sub, name] = args._;
@@ -87,8 +88,11 @@ export function cmdFeature(args, ctx) {
       case 'milestone': feat.milestone = ['none', ''].includes(value) ? null : value; break;
       case 'tags': feat.tags = csv(value); break;
       case 'size_waiver': feat.size_waiver = value.trim() || null; break;
+      case 'complexity':
+        if (![...COMPLEXITY, 'auto'].includes(value)) throw new UserError(`complexity must be one of ${COMPLEXITY.join(', ')} or auto`);
+        feat.complexity = value === 'auto' ? null : value; break;
       case 'stage': case 'gates': throw new UserError('stage and gates cannot be set here; use `stage set` / `gate approve`');
-      default: throw new UserError('settable fields: title, summary, priority, mvp, value, risk, repos, ui, lane, milestone, tags, size_waiver');
+      default: throw new UserError('settable fields: title, summary, priority, mvp, value, risk, repos, ui, lane, milestone, tags, size_waiver, complexity');
     }
     logHistory(feat, 'link', `set ${field}`);
     ctx.saveBacklog();

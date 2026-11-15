@@ -59,6 +59,33 @@ test('GRD-4. prose inside cat heredocs is not mistaken for commands, real comman
   assert.equal(run(doc, 'bypassPermissions').json, null, 'and not denied in unattended modes');
   assert.equal(dec(run(doc + 'git push origin main')), 'ask', 'a real command after the heredoc is still caught');
   assert.equal(dec(run("bash <<'EOF'\ngit push origin main\nEOF\n")), 'ask', 'heredoc fed to a shell is still inspected');
-  assert.equal(dec(run("cat > .specflow/backlog.json <<'EOF'\n{}\nEOF\n")), 'ask', 'redirect to a state file on the first line is still caught');
+  assert.equal(dec(run("cat > .specflow/backlog.json <<'EOF'\n{}\nEOF\n")), 'deny', 'redirect to a state file on the first line is still caught');
+  fx.cleanup();
+});
+
+test('GRD-AUTO. file edits never prompt in modes that already approve edits; gates and denials are unchanged', () => {
+  const fx = makeFixture();
+  assert.equal(cli(fx.root, 'init').code, 0);
+  const edit = (permission_mode, file_path, extra = {}) => hook('pre-tool-use', fx.root, { tool_name: 'Edit', permission_mode, tool_input: { file_path, old_string: 'x', new_string: 'y' }, ...extra });
+  const src = path.join(fx.be, 'src', 'index.js');
+  const instr = path.join(fx.be, 'CLAUDE.md');
+  // Default mode: the file-edit checks ask, as before.
+  assert.equal(dec(edit('default', src)), 'ask', 'source edit outside implementing');
+  assert.equal(dec(edit('default', instr)), 'ask', 'instruction file');
+  for (const mode of ['auto', 'acceptEdits', 'bypassPermissions', 'dontAsk']) {
+    assert.equal(edit(mode, src).json, null, `source edit in ${mode}`);
+    assert.equal(edit(mode, instr).json, null, `instruction file in ${mode}`);
+    assert.equal(dec(edit(mode, path.join(fx.root, '.specflow', 'backlog.json'))), 'deny', `state file in ${mode}`);
+  }
+  // A configured "deny" is still a deny in auto mode.
+  const p = path.join(fx.root, '.specflow', 'config.json');
+  const c = JSON.parse(fs.readFileSync(p, 'utf8'));
+  c.guards.source_edit_outside_implementing = 'deny';
+  fs.writeFileSync(p, JSON.stringify(c));
+  assert.equal(dec(edit('auto', src)), 'deny');
+  // Gates still ask in auto mode.
+  const bash = (command) => hook('pre-tool-use', fx.root, { tool_name: 'Bash', permission_mode: 'auto', tool_input: { command } });
+  assert.equal(dec(bash('node "/p/scripts/specflow.mjs" gate approve F-001 spec')), 'ask');
+  assert.equal(dec(bash('git push origin main')), 'ask');
   fx.cleanup();
 });

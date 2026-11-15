@@ -11,6 +11,7 @@ export function cmdDispatch(args, ctx) {
   ctx.saveBacklog();
   emit(d, () => [
     d.agent ? `agent: ${d.agent}  model: ${d.model}${d.covered_by ? `  (covers disabled ${d.requested_role})` : ''}` : `PM does this itself (${d.requested_role} disabled)`,
+    d.agent ? `model choice: ${d.model_reason}` : '',
     d.repos_todo.length > 1 ? `repos to do (deploy order): ${d.repos_todo.join(', ')}` : '',
     'prompt:',
     d.prompt,

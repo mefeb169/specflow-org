@@ -274,15 +274,19 @@ test('8. pre-tool-use hook decisions', () => {
   fx.cleanup();
 });
 
-test('8b. source edits allowed when a feature is implementing for that repo', () => {
+test('8b. source edits allowed for the builder when a feature is implementing for that repo; the PM is sent to dispatch', () => {
   const fx = setup();
   const id = addFeature(fx.root);
   const p = path.join(fx.root, '.specflow', 'backlog.json');
   const b = readBacklog(fx.root);
   b.features[0].stage = 'implementing';
   fs.writeFileSync(p, JSON.stringify(b));
-  const r = hook('pre-tool-use', fx.root, { tool_name: 'Edit', tool_input: { file_path: path.join(fx.be, 'src', 'index.js') } });
+  const edit = { tool_name: 'Edit', tool_input: { file_path: path.join(fx.be, 'src', 'index.js') } };
+  const r = hook('pre-tool-use', fx.root, { ...edit, agent_id: 'agent-1', agent_type: 'specflow:builder' });
   assert.equal(r.json, null, id);
+  const pm = hook('pre-tool-use', fx.root, edit);
+  assert.equal(pm.json.hookSpecificOutput.permissionDecision, 'deny');
+  assert.match(pm.json.hookSpecificOutput.permissionDecisionReason, new RegExp(`specflow dispatch ${id} --repo backend`));
   fx.cleanup();
 });
 
@@ -339,11 +343,25 @@ test('11. gate required reflects autonomy and traits', () => {
   fx.cleanup();
 });
 
-test('12. shell writes to specflow state files are gated', () => {
+test('12. shell writes to specflow state files are denied; reads are not mistaken for writes', () => {
   const fx = setup();
-  const run = (command) => hook('pre-tool-use', fx.root, { tool_name: 'Bash', tool_input: { command } });
-  assert.equal(run('sed -i s/1/2/ .specflow/backlog.json').json.hookSpecificOutput.permissionDecision, 'ask');
-  assert.equal(run('echo {} > ' + ['.specflow', 'config.json'].join(String.fromCharCode(92))).json.hookSpecificOutput.permissionDecision, 'ask');
-  assert.equal(run('cat .specflow/backlog.json').json, null);
+  const run = (command, permission_mode = 'default') => hook('pre-tool-use', fx.root, { tool_name: 'Bash', permission_mode, tool_input: { command } });
+  const decision = (r) => r.json?.hookSpecificOutput?.permissionDecision ?? null;
+  for (const mode of ['default', 'auto']) {
+    assert.equal(decision(run('sed -i s/1/2/ .specflow/backlog.json', mode)), 'deny', mode);
+    assert.equal(decision(run('echo {} > ' + ['.specflow', 'config.json'].join(String.fromCharCode(92)), mode)), 'deny', mode);
+  }
+  assert.match(run('rm .specflow/memory.json').json.hookSpecificOutput.permissionDecisionReason, /specflow CLI/);
+  assert.equal(decision(run('cp /tmp/b.json .specflow/backlog.json')), 'deny');
+  assert.equal(decision(run(`node -e "fs.writeFileSync('.specflow/backlog.json','{}')"`)), 'deny');
+  // Read-only commands seen in real sessions: a redirect elsewhere on the line is not a write to state.
+  for (const read of [
+    'cat .specflow/backlog.json',
+    "grep -n '\"milestone\"' .specflow/config.json; specflow status 2>&1 | head -5",
+    'cat .specflow/config.json | head -80 >/dev/null; ls',
+    'sed -n 110,125p .specflow/config.json',
+    `node -e "const c=require('./.specflow/config.json');console.log(c.repos)" 2>&1`,
+    'cp .specflow/backlog.json /tmp/backlog-backup.json',
+  ]) assert.equal(run(read).json, null, read);
   fx.cleanup();
 });

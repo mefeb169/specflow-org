@@ -5,6 +5,7 @@ import { UserError, handoffRel, inDeployOrder, isContainer, isUi, specDirAbs } f
 import { checkTasks, uxCheck } from './gates.mjs';
 import { ROLE_AGENT, ROLE_FALLBACK, ROLE_TARGET, TEAM_ROLES, leadOf, releaseCfg, teamCfg, testingCfg } from './team.mjs';
 import { releaseFile } from './release.mjs';
+import { pickModel } from './models.mjs';
 
 const PROMPT_MAX = 1200;
 const cut = (s, n) => (String(s).length > n ? `${String(s).slice(0, n - 3)}...` : String(s));
@@ -93,7 +94,8 @@ export function dispatch(ctx, f, flags = {}) {
     return { ...base, role: 'pm', agent: null, model: null, repo: null, repos_todo: [], questions: [], prompt };
   }
   const role = eff.role;
-  const { repo, todo } = role === 'builder' || role === 'lead' ? pickRepo(ctx, f, flags.repo, role, team) : { repo: null, todo: [] };
+  const perRepo = ['builder', 'lead', 'reviewer'].includes(role);
+  const { repo, todo } = perRepo ? pickRepo(ctx, f, flags.repo, role, team) : { repo: null, todo: [] };
   const lead = role === 'lead' ? (repo ? leadOf(team, repo) : leadOf(team, f.repos[0])) : null;
   if (role === 'lead' && !lead) throw new UserError(`no lead covers ${repo || f.repos.join(', ')}: add one with \`team lead add\``);
   const target = ROLE_TARGET[role];
@@ -115,11 +117,13 @@ export function dispatch(ctx, f, flags = {}) {
     `Handoff: ${handoff}${fs.existsSync(path.resolve(ctx.root, handoff)) ? '' : ' (not written yet)'}`,
     `Spec dir: ${f.spec_dir || '(none)'}${have.length ? ` (${have.join(', ')})` : ''}`,
     ['builder', 'lead', 'verifier'].includes(role) ? testingLine(ctx) : '',
+    role === 'reviewer' ? `Review only: read-only review of ${repo || 'the repo'}'s diff against spec.md, plan.md and the repo instructions; the verifier adds the diff range and checklist.` : '',
     role === 'release' ? releaseLine(ctx, f) : '',
     qs.length ? `Open questions for you: ${shown}` : '',
     `PM update level: ${team.communication}.`,
     'Follow the subagent contract in your agent definition.',
   ].filter(Boolean);
   const prompt = cut(lines.join('\n'), PROMPT_MAX);
-  return { ...base, role, agent: ROLE_AGENT[role], model: team.roles[role].model, repo, lead: lead ? lead.name : null, repos_todo: todo, questions: qs.map((q) => q.id), prompt };
+  const m = pickModel(ctx, f, role);
+  return { ...base, role, agent: ROLE_AGENT[role], model: m.model, model_ceiling: m.ceiling, complexity: m.complexity, model_reason: m.why, repo, lead: lead ? lead.name : null, repos_todo: todo, questions: qs.map((q) => q.id), prompt };
 }

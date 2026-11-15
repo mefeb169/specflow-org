@@ -3,6 +3,7 @@ import path from 'node:path';
 import { BLOCKER_KINDS, DEP_TYPES, GATES, KINDS, LANES, PRIORITIES, STAGES } from './lifecycle.mjs';
 import { repoDir } from './state.mjs';
 import { validateRelease, validateTeam } from './team.mjs';
+import { validateSession } from './session.mjs';
 
 export function validate(ctx) {
   const e = [];
@@ -17,7 +18,9 @@ export function validate(ctx) {
   }
   for (const r of config.repos || []) if (r.ui !== undefined && typeof r.ui !== 'boolean') e.push(`repo "${r.name}": ui must be a boolean`);
   for (const [k, v] of Object.entries(config.ux || {})) if (typeof v !== 'boolean') e.push(`config.ux.${k} must be a boolean`);
-  e.push(...validateTeam(ctx), ...validateRelease(ctx));
+  e.push(...validateTeam(ctx), ...validateRelease(ctx), ...validateSession(ctx));
+  const pmEdits = config.guards?.pm_source_edits;
+  if (pmEdits !== undefined && !['off', 'ask', 'deny'].includes(pmEdits)) e.push('config.guards.pm_source_edits must be off, ask or deny');
   const ids = new Set(backlog.features.map((f) => f.id));
   if (ids.size !== backlog.features.length) e.push('duplicate feature ids in backlog');
   for (const f of backlog.features) {

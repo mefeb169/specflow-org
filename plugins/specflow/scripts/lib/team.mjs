@@ -29,7 +29,7 @@ export function teamCfg(ctx) {
     const enabled = given.enabled !== undefined ? given.enabled : r === 'ux' ? anyUiRepo(ctx) : r === 'lead' ? (t.leads || []).length > 0 : r === 'release' ? !!ctx.config.release?.by_ai : true;
     roles[r] = { enabled: !!enabled, model: given.model || DEFAULT_MODEL[r] };
   }
-  return { roles, leads: (t.leads || []).map((l) => ({ name: l.name, repos: [...l.repos] })), locked: [...(t.locked || [])], communication: t.communication || 'short', workflow: t.workflow || 'feature' };
+  return { roles, leads: (t.leads || []).map((l) => ({ name: l.name, repos: [...l.repos] })), locked: [...(t.locked || [])], communication: t.communication || 'short', workflow: t.workflow || 'feature', model_policy: t.model_policy || 'auto' };
 }
 
 export const deliveryCfg = (ctx) => ({ mode: 'push-pr', target_branch: null, pr_tool: 'gh', ...(ctx.config.delivery || {}) });
@@ -68,6 +68,7 @@ export function validateTeam(ctx) {
   for (const r of t.locked) if (!TEAM_ROLES.includes(r)) e.push(`team.locked: unknown role "${r}"`);
   if (!COMMUNICATION.includes(t.communication)) e.push(`team.communication must be one of ${COMMUNICATION.join(', ')}`);
   if (!WORKFLOWS.includes(t.workflow)) e.push(`team.workflow must be one of ${WORKFLOWS.join(', ')}`);
+  if (!['auto', 'fixed'].includes(t.model_policy)) e.push('team.model_policy must be auto or fixed');
   const names = new Set((ctx.config.repos || []).map((r) => r.name));
   const seen = new Map();
   for (const l of t.leads) {

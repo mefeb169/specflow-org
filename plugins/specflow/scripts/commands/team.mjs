@@ -4,16 +4,16 @@ import { COMMUNICATION, ROLE_AGENT, TEAM_ROLES, WORKFLOWS, anyUiRepo, leadOf, ma
 import { table } from '../lib/render.mjs';
 import { csv, emit, need } from './io.mjs';
 
-const USAGE = 'usage: team [show] | team set <role> [--model m] [--enabled true|false] | team set --communication short|normal|detailed | team set --workflow feature|task | team lead add <name> --repos a,b | team lead rm <name> | team generate';
+const USAGE = 'usage: team [show] | team set <role> [--model m] [--enabled true|false] | team set --communication short|normal|detailed | team set --workflow feature|task | team set --model-policy auto|fixed | team lead add <name> --repos a,b | team lead rm <name> | team generate';
 
 function show(ctx) {
   const t = teamCfg(ctx);
   const roles = TEAM_ROLES.map((r) => ({ role: r, enabled: t.roles[r].enabled, model: t.roles[r].model, agent: ROLE_AGENT[r], locked: t.locked.includes(r) }));
-  const data = { roles, leads: t.leads, locked: t.locked, communication: t.communication, workflow: t.workflow };
+  const data = { roles, leads: t.leads, locked: t.locked, communication: t.communication, workflow: t.workflow, model_policy: t.model_policy };
   emit(data, () => [
     table(roles.map((r) => ({ ...r, enabled: r.enabled ? 'yes' : 'no', locked: r.locked ? 'yes' : '' })), ['role', 'enabled', 'model', 'agent', 'locked']),
     `leads: ${t.leads.length ? t.leads.map((l) => `${l.name} (${l.repos.join(', ')})`).join('; ') : '(none)'}`,
-    `communication: ${t.communication} | workflow: ${t.workflow}`,
+    `communication: ${t.communication} | workflow: ${t.workflow} | model policy: ${t.model_policy}${t.model_policy === 'auto' ? ' (lowest model tier that fits each item, capped at the role model)' : ''}`,
   ].join('\n'));
 }
 
@@ -42,6 +42,11 @@ export function cmdTeam(args, ctx) {
     if (f.workflow !== undefined) {
       if (!WORKFLOWS.includes(f.workflow)) throw new UserError(`--workflow must be one of ${WORKFLOWS.join(', ')}`);
       team.workflow = f.workflow; touched.push('workflow');
+    }
+    const mp = f['model-policy'] ?? f.model_policy;
+    if (mp !== undefined) {
+      if (!['auto', 'fixed'].includes(mp)) throw new UserError('--model-policy must be auto or fixed');
+      team.model_policy = mp; touched.push('model_policy');
     }
     if (!touched.length) throw new UserError(USAGE);
     ctx.saveConfig();

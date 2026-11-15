@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { LITE_GATES_DEFAULT, SLICING_DEFAULTS, UX_DEFAULTS } from './lifecycle.mjs';
 import { fillTeamDefaults, teamCfg } from './team.mjs';
+import { SESSION_DEFAULTS } from './session.mjs';
 import { LEGACY_STATE_DIR, STATE_DIR, UserError, paths, readJson } from './state.mjs';
 
 const gitignorePath = (ctx) => path.join(ctx.root, '.gitignore');
@@ -115,6 +116,22 @@ export const MIGRATIONS = [
       const t = ctx.config.team ||= teamCfg(ctx);
       t.roles ||= {};
       t.roles.release ||= { enabled: !!ctx.config.release.by_ai, model: 'sonnet' };
+    },
+  },
+  {
+    to: '0.8.0',
+    describe: 'Token efficiency: session budget, lean PM (no main-session code edits while a builder can work), model policy by task complexity',
+    plan(ctx) {
+      const out = [];
+      if (!ctx.config.session) out.push(`config.session = context_budget:${SESSION_DEFAULTS.context_budget}, repeat_every:${SESSION_DEFAULTS.repeat_every}`);
+      if (ctx.config.guards && ctx.config.guards.pm_source_edits === undefined) out.push('config.guards.pm_source_edits = deny');
+      if (ctx.config.team && ctx.config.team.model_policy === undefined) out.push('config.team.model_policy = auto (role models become ceilings)');
+      return out;
+    },
+    apply(ctx) {
+      ctx.config.session ??= { ...SESSION_DEFAULTS };
+      if (ctx.config.guards) ctx.config.guards.pm_source_edits ??= 'deny';
+      if (ctx.config.team) ctx.config.team.model_policy ??= 'auto';
     },
   },
 ];

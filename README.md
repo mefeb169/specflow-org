@@ -135,7 +135,7 @@ sflow issue list        # open bugs, debt and chores; sflow question list --open
 
 The Claude session you talk to is the **Project Manager (PM)**. It is the only role that talks to you and the only one that approves gates. Every other role is a subagent with its own model and a fixed contract:
 
-| Role | Agent | Default model | Does |
+| Role | Agent | Model ceiling | Does |
 |---|---|---|---|
 | product | `specflow:product` | opus | defines features, writes spec.md, runs the acceptance walkthrough |
 | ux | `specflow:ux` | opus | ux.md for UI items (enabled when a repo has `ui: true`) |
@@ -146,7 +146,11 @@ The Claude session you talk to is the **Project Manager (PM)**. It is the only r
 | release (optional) | `specflow:release-manager` | sonnet | proposes release steps from your docs, checks migrations, writes rollback notes (never runs a deploy) |
 | reviewer, profiler | `independent-reviewer`, `repo-profiler` | opus, haiku | read-only review and repo profiling |
 
-The PM loop: `specflow dispatch <id> --json` names the agent, model and prompt for the item's stage; the PM spawns that agent, reads its short report, routes its questions (team questions to the role that owns the answer, user questions batched and checked against the decision log first), presents gates, and dispatches the next step. Roles never talk to the user: they write questions with `specflow question add` and checkpoint before returning. The hook denies `gate approve`, `init`, `upgrade --apply`, `install`, `uninstall`, `specify init`, `git push`, `gh pr create`, `gh pr merge`, `specflow deliver` and `specflow release run|verify` for subagents. Models come from `specflow team show`, so `specflow team set builder --model opus` takes effect at the next dispatch. `specflow:setup` asks about the team once, after `init`.
+**Models follow the task (`team.model_policy: auto`, the default).** `dispatch` rates each item `low`, `medium` or `high`: high for several repos, a migration, more than 10 tasks, risk high or a second rework round; low for a lite-lane item (slice, bug, debt, chore) on one repo with at most 5 tasks and no rework round; medium otherwise. Each role then gets the lowest tier that fits, never above its configured model: builder, verifier and reviewer run on haiku for low items; the reviewer gets opus only for high ones; the architect keeps opus from medium up. `dispatch` prints the reason (`model choice: ...`). Override per item with `feature set <id> complexity low|medium|high|auto`, or turn the policy off with `team set --model-policy fixed`.
+
+**Lean sessions.** Every turn re-reads the whole session context, so long sessions dominate token use. Two hooks keep the PM session small: while an item is implementing, the PM may not edit that repo's code (`guards.pm_source_edits`: `deny` by default, or `ask`, `off`; allowed when no builder or lead is enabled) and dispatches the builder instead; and once the session context passes `session.context_budget` (150,000 tokens; `0` turns it off), the Stop hook asks the PM to checkpoint and tell you to start a fresh session, which resumes from the handoff. It asks again every `session.repeat_every` (100,000) tokens.
+
+The PM loop: `specflow dispatch <id> --json` names the agent, model and prompt for the item's stage; the PM spawns that agent, reads its short report, routes its questions (team questions to the role that owns the answer, user questions batched and checked against the decision log first), presents gates, and dispatches the next step. Roles never talk to the user: they write questions with `specflow question add` and checkpoint before returning. The hook denies `gate approve`, `init`, `upgrade --apply`, `install`, `uninstall`, `specify init`, `git push`, `gh pr create`, `gh pr merge`, `specflow deliver` and `specflow release run|verify` for subagents. Model ceilings come from `specflow team show`, so `specflow team set builder --model opus` takes effect at the next dispatch. `specflow:setup` asks about the team once, after `init`.
 
 ## Command reference
 
@@ -172,9 +176,9 @@ Every command accepts `--json`. `specflow help` prints this list.
 | `pref set <key> <value>` / `pref list` / `pref rm <key>` | Learned preferences (`.specflow/memory.json`) |
 | `decision add "<q>" "<a>" [--feature id]` / `decision list [--feature id --limit n]` | Owner decisions, newest first |
 | `lesson add "<text>" [--from id]` / `lesson list [--status s]` / `lesson promote\|reject L-n` | Recurring findings proposed as rules; only the owner promotes one |
-| `team [show]` / `team set <role> [--model m --enabled true|false]` / `team set --communication short|normal|detailed` / `team set --workflow feature|task` | The team: roles, models, leads. `team set <role>` locks the role against `team generate` |
+| `team [show]` / `team set <role> [--model m --enabled true|false]` / `team set --communication short|normal|detailed` / `team set --workflow feature|task` / `team set --model-policy auto|fixed` | The team: roles, models, leads. `team set <role>` locks the role against `team generate` |
 | `team lead add <name> --repos a,b` / `team lead rm <name>` / `team generate` | Leads per area (one repo belongs to at most one lead); `generate` re-derives defaults from the repos and suggests leads with 4+ repos |
-| `dispatch <id> [--role r --repo name --question Q-n]` | The packet the PM uses to spawn a role: agent, model, repos still to do, and a prompt under 1,200 characters |
+| `dispatch <id> [--role r --repo name --question Q-n]` | The packet the PM uses to spawn a role: agent, model (by task complexity) and why, repos still to do, and a prompt under 1,200 characters. `--role reviewer --repo r` gives the verifier the reviewer's model |
 | `setup questions` / `setup apply --answers <file.json>` / `setup status` | The setup interview as data: questions with defaults from the workspace, validated answers (logged as decisions), what is answered |
 | `repo set <name> [--test c --build c --lint c --purpose s --stack a,b --ui true\|false --confirm --deploy-order n]` | Registry of repos and their confirmed commands |
 | `feature add --title s [--priority P2 --mvp --repos a,b --summary s --value s --risk r --ui true\|false]` | New backlog feature |
@@ -217,6 +221,7 @@ specflow release step add health --run "./scripts/health.sh" --post
 
 - **Update the plugin and command:** `git pull` in the repository, then in Claude `/reload-plugins` (or start a new session). Existing workspaces keep working; if a release needs a state migration, `specflow brief` and `specflow doctor` say so.
 - **0.6.0:** `specflow upgrade --apply` adds `team`, `delivery`, `release`, `testing` and `tools` to `config.json` (additive; the ux role is enabled when a repo has `ui: true`). Nothing is rewritten on read; a 0.5.0 config works unchanged.
+- **0.8.0:** `specflow upgrade --apply` adds `session` (context budget), `guards.pm_source_edits: deny` and `team.model_policy: auto`. Additive; set `team.model_policy` to `fixed` to keep every role on its configured model.
 - **0.7.0:** `specflow upgrade --apply` extends `release` with `steps`, `post_release` and `require_merged` (keeping `by_ai`) and adds the `release` team role (enabled when `release.by_ai` is true). Additive only.
 - **0.5.0 (schema v2):** a 0.4.0 workspace keeps working unchanged (missing fields are filled in memory, nothing is rewritten on read). `specflow upgrade` lists the additions, `specflow upgrade --apply` writes them (kinds, lanes, focus, questions, `.specflow/memory.json`, slicing and lane config) without changing any existing value.
 - **Migrate a workspace after an update:** `specflow upgrade` (shows what would change), then `specflow upgrade --apply`.
@@ -242,7 +247,7 @@ More detail on what was verified and what was not: [docs/runtime.md](docs/runtim
 
 ## Status
 
-Public beta (0.7.0). Tested on Windows with Node 26 and Spec Kit 1.2.0. The CI workflow covers Ubuntu, macOS and Windows on Node 18 and 22 but has not run yet; macOS/Linux and Node 18 are untested. Known gaps are in the [plugin README](plugins/specflow/README.md).
+Public beta (0.8.0). Tested on Windows with Node 26 and Spec Kit 1.2.0. The CI workflow covers Ubuntu, macOS and Windows on Node 18 and 22 but has not run yet; macOS/Linux and Node 18 are untested. Known gaps are in the [plugin README](plugins/specflow/README.md).
 
 ## Development
 

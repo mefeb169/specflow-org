@@ -61,7 +61,8 @@
     "leads": [],
     "locked": [],
     "communication": "short",
-    "workflow": "feature"
+    "workflow": "feature",
+    "model_policy": "auto"
   },
   "delivery": {
     "mode": "push-pr",
@@ -88,8 +89,13 @@
     "location": ".",
     "skills": []
   },
+  "session": {
+    "context_budget": 150000,
+    "repeat_every": 100000
+  },
   "guards": {
     "source_edit_outside_implementing": "ask",
+    "pm_source_edits": "deny",
     "deny_in_unattended_modes": true,
     "destructive_bash_patterns": [],
     "extra_bash_patterns": []
