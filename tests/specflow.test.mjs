@@ -274,15 +274,19 @@ test('8. pre-tool-use hook decisions', () => {
   fx.cleanup();
 });
 
-test('8b. source edits allowed when a feature is implementing for that repo', () => {
+test('8b. source edits allowed for the builder when a feature is implementing for that repo; the PM is sent to dispatch', () => {
   const fx = setup();
   const id = addFeature(fx.root);
   const p = path.join(fx.root, '.specflow', 'backlog.json');
   const b = readBacklog(fx.root);
   b.features[0].stage = 'implementing';
   fs.writeFileSync(p, JSON.stringify(b));
-  const r = hook('pre-tool-use', fx.root, { tool_name: 'Edit', tool_input: { file_path: path.join(fx.be, 'src', 'index.js') } });
+  const edit = { tool_name: 'Edit', tool_input: { file_path: path.join(fx.be, 'src', 'index.js') } };
+  const r = hook('pre-tool-use', fx.root, { ...edit, agent_id: 'agent-1', agent_type: 'specflow:builder' });
   assert.equal(r.json, null, id);
+  const pm = hook('pre-tool-use', fx.root, edit);
+  assert.equal(pm.json.hookSpecificOutput.permissionDecision, 'deny');
+  assert.match(pm.json.hookSpecificOutput.permissionDecisionReason, new RegExp(`specflow dispatch ${id} --repo backend`));
   fx.cleanup();
 });
 

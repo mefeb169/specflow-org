@@ -177,8 +177,9 @@ const disp = (root, ...a) => j(root, 'dispatch', ...a);
 test('P2-7. dispatch routes every stage to the right role, agent and model', () => {
   const fx = setup();
   const id = addF(fx.root, 'Routing', 'backend', '--ui', 'false');
+  ok(cli(fx.root, 'team', 'set', '--model-policy', 'fixed')); // role models as configured; the auto policy is P4 territory
   fs.mkdirSync(path.join(fx.root, 'specs', '001-x'), { recursive: true });
-  const want = { proposed: 'product', defined: 'product', specified: 'architect', designed: 'architect', planned: 'builder', implementing: 'builder', verifying: 'verifier', accepted: 'product' };
+  const want ={ proposed: 'product', defined: 'product', specified: 'architect', designed: 'architect', planned: 'builder', implementing: 'builder', verifying: 'verifier', accepted: 'product' };
   for (const [stage, role] of Object.entries(want)) {
     setStage(fx.root, id, stage, { spec_dir: stage === 'proposed' || stage === 'defined' ? null : 'specs/001-x' });
     const d = disp(fx.root, id);
@@ -466,8 +467,8 @@ test('P2-19. lean status: >30 open items and no milestone hide proposed ones wit
 
 test('P2-20. version in plugin.json and package.json; HELP lists every Phase 2 command', () => {
   const root = path.resolve(PLUGIN, '..', '..');
-  assert.equal(JSON.parse(read('.claude-plugin', 'plugin.json')).version, '0.7.0');
-  assert.equal(JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')).version, '0.7.0');
+  assert.equal(JSON.parse(read('.claude-plugin', 'plugin.json')).version, '0.8.0');
+  assert.equal(JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')).version, '0.8.0');
   const help = cli(path.resolve(PLUGIN), 'help').out;
   for (const c of ['team set', 'team lead add', 'team generate', 'dispatch <id>', 'setup questions', 'setup apply', 'setup status']) assert.ok(help.includes(c), c);
   const readme = fs.readFileSync(path.join(root, 'README.md'), 'utf8');

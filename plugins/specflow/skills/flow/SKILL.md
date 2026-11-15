@@ -20,7 +20,7 @@ Follow `team.communication` (`specflow team show`): short = outcome and next ste
 
 ## The loop
 1. `specflow dispatch <id> --json` returns `role`, `agent`, `model`, `prompt`, `repos_todo`. Add `--repo <name>` for a builder (one repo per dispatch; do the repos in `repos_todo` order) and `--question Q-n` to focus a role on one question.
-2. Spawn the agent with the Agent tool: `subagent_type` = `agent`, `model` = `model`, `prompt` = the packet's prompt, verbatim. Independent repos may be dispatched in parallel. If `role` is `pm`, do the step yourself.
+2. Spawn the agent with the Agent tool: `subagent_type` = `agent`, `model` = `model` (picked by task complexity; never raise it), `prompt` = the packet's prompt, verbatim. Independent repos may be dispatched in parallel. If `role` is `pm`, do the step yourself.
 3. Read its report (at most 15 lines). Run `specflow status <id>` to confirm the state it claims. Report failures plainly.
 4. `specflow question list --open --feature <id>`:
    - addressed to a team role (`product`, `architect`, `ux`, `build`, `verify`): dispatch that role with `--question Q-n`, then relay the answer with `specflow question answer Q-n "<answer>" --by <role>`;
@@ -30,6 +30,9 @@ Follow `team.communication` (`specflow team show`): short = outcome and next ste
 7. A verified item with findings: in-slice findings are a rework round (`specflow rework start <id> --reason`, same branch, no new PR); everything else is `specflow issue add --from <id>`. No silent scope growth.
 8. Delivery (once `accepted`; never during a rework round; mode `commit` means the user pushes): `specflow deliver <id> --dry-run`, explain it, then `deliver <id>`. Tell the user the PR links in one message. When they say they merged: `deliver status <id>`. After a rework round, `deliver` updates the same PRs.
 9. Then the `acceptance` gate, then `release plan <id>`. Release by AI (`release.by_ai`): dispatch `release` to propose steps, confirm them with the user, add them with `release step add`, then `release run <id>` (it stops at each step needing approval: run it again with `--step <name>`), `stage set released`, `release verify <id>`, `stage set done`. Without AI release the user follows `release.md`; record `evidence add --kind release` and `post-release` (or a `--reason` waiver).
+
+## Keep this session lean
+Every turn re-reads the whole context. Edits, test runs, code reading and screenshots belong in a dispatched role, not here (the hook denies PM code edits while a builder can work). When the Stop hook reports the session budget: checkpoint, tell the user to start fresh, stop.
 
 ## Continuity
 - On "continue" or "resume", read the brief's Focus line and that handoff file first; do not re-read spec, plan or tasks until the handoff says to.

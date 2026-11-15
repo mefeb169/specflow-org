@@ -2,6 +2,17 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/). Versions follow the plugin version in `plugins/specflow/.claude-plugin/plugin.json`.
 
+## [0.8.0] - 2026-11-15
+Token efficiency, from measured use: about 76% of input tokens were main-session context re-read on every turn (median 172k tokens per turn, two sessions of 1,000+ turns). A 0.7.0 workspace keeps working before `specflow upgrade --apply`.
+### Added
+- Session budget: the Stop hook reads the last main-session turn's context size from the transcript; past `session.context_budget` (default 150,000 tokens) it keeps the PM going for one turn to run `specflow checkpoint` and tell the user to start a fresh session. It repeats every `session.repeat_every` (100,000) tokens, never twice in a row, and resets after a compaction. `0` turns it off.
+- Lean PM guard: while an item is implementing, a main-session Edit/Write in that repo is denied with the `specflow dispatch <id> --repo <name>` route (`guards.pm_source_edits`: deny, ask or off). Subagents, and workspaces with builder and lead both disabled, are unaffected.
+- Model policy by task complexity (`team.model_policy: auto`, default): `dispatch` rates the item low, medium or high (repos, migrations, task count, risk, rework rounds, lane) and picks the lowest tier that fits each role, capped at the role's configured model. The packet carries `complexity`, `model_ceiling` and `model_reason`. `feature set <id> complexity low|medium|high|auto` overrides; `team set --model-policy fixed` restores configured models.
+- `dispatch <id> --role reviewer --repo <name>`: the verifier gets the independent reviewer's model from it. Before, the reviewer always ran on its agent default (sonnet) and `team.roles.reviewer.model` was unused.
+- Upgrade migration `0.8.0`; tests `tests/phase4.test.mjs`.
+### Changed
+- The flow skill asks the PM to keep its session lean (no code edits, test runs or screenshots in the main session) and never to raise a dispatched model; the verify skill asks for quiet test output.
+
 ## [0.7.0] - 2026-10-20
 Phase 3 of the team-model roadmap: delivery and release pipelines. A 0.6.0 workspace keeps working before `specflow upgrade --apply`.
 ### Added

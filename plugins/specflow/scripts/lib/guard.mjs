@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { DEFAULT_DESTRUCTIVE_PATTERNS } from './lifecycle.mjs';
 import { norm } from './state.mjs';
+import { teamCfg } from './team.mjs';
 
 const INSTRUCTION_FILES = /(^|[\\/])(CLAUDE\.md|CLAUDE\.local\.md|AGENTS\.md|GEMINI\.md|\.cursorrules|\.windsurfrules|copilot-instructions\.md)$/i;
 // Managed CLAUDE.md block markers: current and legacy (workspaces created before 0.4 use `sdlc:`).
@@ -129,14 +130,26 @@ export function decide({ root, config, backlog, input, cwd }) {
   const first = rel.split('/')[0];
   if (NON_SOURCE.includes(first)) return null;
   const mode = config.guards?.source_edit_outside_implementing || 'ask';
-  if (mode === 'off') return null;
   // Longest matching registered repo path owns the file.
   const owner = [...(config.repos || [])]
     .filter((r) => within(fileN, norm(path.resolve(root, r.path))))
     .sort((a, b) => path.resolve(root, b.path).length - path.resolve(root, a.path).length)[0];
   if (!owner) return null;
-  const active = backlog.features.some((f) => f.stage === 'implementing' && f.repos.includes(owner.name));
-  if (active) return null;
+  const item = backlog.features.find((f) => f.stage === 'implementing' && f.repos.includes(owner.name) && !f.dropped);
+  // Lean PM: while an item is implementing, its builder writes the code in its own context and returns a short
+  // report, so the main session stays small. Judged only for the main session (subagent calls carry agent_id).
+  if (item) return input.agent_id ? null : pmEditRule(config, owner.name, item);
+  if (mode === 'off') return null;
   const reason = `Source edit in repo "${owner.name}" while no feature touching it is in stage "implementing".`;
   return mode === 'deny' ? deny(reason) : ask(reason);
+}
+
+/** Main-session edit of product code while `item` is implementing (null = allowed). */
+function pmEditRule(config, repo, item) {
+  const rule = config.guards?.pm_source_edits ?? 'deny';
+  if (rule === 'off') return null;
+  const team = teamCfg({ config });
+  if (!team.roles.builder.enabled && !team.roles.lead.enabled) return null; // the PM is the builder (role: pm fallback)
+  const reason = `The specflow PM (main session) does not edit product code in "${repo}" while ${item.id} is implementing: dispatch the builder (\`specflow dispatch ${item.id} --repo ${repo}\`), which works in a fresh context and returns a short report, keeping this session small. To allow PM edits, set config guards.pm_source_edits to "ask" or "off".`;
+  return rule === 'ask' ? ask(reason) : deny(reason);
 }
