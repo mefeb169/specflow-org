@@ -343,11 +343,25 @@ test('11. gate required reflects autonomy and traits', () => {
   fx.cleanup();
 });
 
-test('12. shell writes to specflow state files are gated', () => {
+test('12. shell writes to specflow state files are denied; reads are not mistaken for writes', () => {
   const fx = setup();
-  const run = (command) => hook('pre-tool-use', fx.root, { tool_name: 'Bash', tool_input: { command } });
-  assert.equal(run('sed -i s/1/2/ .specflow/backlog.json').json.hookSpecificOutput.permissionDecision, 'ask');
-  assert.equal(run('echo {} > ' + ['.specflow', 'config.json'].join(String.fromCharCode(92))).json.hookSpecificOutput.permissionDecision, 'ask');
-  assert.equal(run('cat .specflow/backlog.json').json, null);
+  const run = (command, permission_mode = 'default') => hook('pre-tool-use', fx.root, { tool_name: 'Bash', permission_mode, tool_input: { command } });
+  const decision = (r) => r.json?.hookSpecificOutput?.permissionDecision ?? null;
+  for (const mode of ['default', 'auto']) {
+    assert.equal(decision(run('sed -i s/1/2/ .specflow/backlog.json', mode)), 'deny', mode);
+    assert.equal(decision(run('echo {} > ' + ['.specflow', 'config.json'].join(String.fromCharCode(92)), mode)), 'deny', mode);
+  }
+  assert.match(run('rm .specflow/memory.json').json.hookSpecificOutput.permissionDecisionReason, /specflow CLI/);
+  assert.equal(decision(run('cp /tmp/b.json .specflow/backlog.json')), 'deny');
+  assert.equal(decision(run(`node -e "fs.writeFileSync('.specflow/backlog.json','{}')"`)), 'deny');
+  // Read-only commands seen in real sessions: a redirect elsewhere on the line is not a write to state.
+  for (const read of [
+    'cat .specflow/backlog.json',
+    "grep -n '\"milestone\"' .specflow/config.json; specflow status 2>&1 | head -5",
+    'cat .specflow/config.json | head -80 >/dev/null; ls',
+    'sed -n 110,125p .specflow/config.json',
+    `node -e "const c=require('./.specflow/config.json');console.log(c.repos)" 2>&1`,
+    'cp .specflow/backlog.json /tmp/backlog-backup.json',
+  ]) assert.equal(run(read).json, null, read);
   fx.cleanup();
 });

@@ -87,7 +87,7 @@ test('P1-4. guard protects memory.json like backlog.json and config.json', () =>
   assert.equal(dec(hook('pre-tool-use', fx.root, { tool_name: 'Edit', tool_input: { file_path: file } })), 'deny');
   assert.equal(dec(hook('pre-tool-use', fx.root, { tool_name: 'Write', tool_input: { file_path: file } })), 'deny');
   const sh1 = hook('pre-tool-use', fx.root, { tool_name: 'Bash', permission_mode: 'default', tool_input: { command: 'echo {} > .specflow/memory.json' } });
-  assert.equal(dec(sh1), 'ask');
+  assert.equal(dec(sh1), 'deny', 'shell writes to state are refused like Edit/Write');
   fx.cleanup();
 });
 

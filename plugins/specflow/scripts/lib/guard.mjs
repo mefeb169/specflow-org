@@ -37,6 +37,29 @@ const deny = (reason) => ({ decision: 'deny', reason });
 const ask = (reason) => ({ decision: 'ask', reason });
 // Permission modes in which a hook-forced "ask" may never reach a human.
 const UNATTENDED_MODES = ['bypassPermissions', 'dontAsk'];
+// Permission modes in which the user already approved file edits. specflow's file-edit checks stay silent there
+// (they only ever asked); gates, delivery, release, destructive commands and state-file denials are unaffected.
+const EDITS_APPROVED_MODES = ['acceptEdits', 'auto', 'bypassPermissions', 'dontAsk'];
+
+// A shell command that WRITES a specflow state file: the file is the target of a redirect, tee, sed -i, cp/mv,
+// rm, a PowerShell write cmdlet, or a write call in an inline script. Reading it (grep, cat, sed -n, require, with
+// `2>&1` or `>/dev/null` elsewhere on the line) is not a write.
+const STATE = String.raw`["']?[^\s"'|;&<>]*\.(?:specflow|sdlc)[\\/](?:backlog|config|memory)\.json`;
+const SEG = String.raw`[^|;&\n]*`;
+const STATE_WRITES = [
+  new RegExp(String.raw`>>?\s*${STATE}`, 'i'),
+  new RegExp(String.raw`\btee\b(?:\s+-\S+)*\s+${STATE}`, 'i'),
+  new RegExp(String.raw`\bsed\b${SEG}\s-i\b${SEG}${STATE}`, 'i'),
+  new RegExp(String.raw`\b(?:rm|mv|Remove-Item|Move-Item|Rename-Item|Clear-Content)\b${SEG}${STATE}`, 'i'),
+  new RegExp(String.raw`\bcp\b${SEG}\s${STATE}["']?\s*(?:$|[|;&\n])`, 'i'),
+  new RegExp(String.raw`\b(?:Set-Content|Out-File|Add-Content|Copy-Item)\b${SEG}${STATE}`, 'i'),
+];
+const SCRIPT_WRITE = /\b(?:writeFileSync|writeFile|appendFileSync|renameSync|unlinkSync|rmSync|json\.dump|write_text|open\([^)]*['"][wa]\+?['"])/i;
+export function writesStateFile(cmd) {
+  if (STATE_WRITES.some((re) => re.test(cmd))) return true;
+  // Inline scripts (node -e, python -) that mention a state file and also write files: cannot prove which, so flag.
+  return new RegExp(STATE, 'i').test(cmd) && SCRIPT_WRITE.test(cmd);
+}
 
 function within(child, parent) {
   const rel = path.relative(parent, child);
@@ -70,6 +93,8 @@ export function decide({ root, config, backlog, input, cwd }) {
   const tool = input.tool_name;
   const ti = input.tool_input || {};
   const unattended = UNATTENDED_MODES.includes(input.permission_mode) && config.guards?.deny_in_unattended_modes !== false;
+  // File-edit checks ask only where the user has not already approved edits through the permission mode.
+  const editAsk = (reason) => (EDITS_APPROVED_MODES.includes(input.permission_mode) ? null : ask(reason));
   // High-stakes actions need a real human prompt; where none can be shown, refuse instead of asking.
   const gate = (reason) => (unattended
     ? deny(`${reason} Refused: permission mode "${input.permission_mode}" cannot show an interactive prompt. Switch to a mode that asks (default, acceptEdits or auto) and retry.`)
@@ -99,8 +124,9 @@ export function decide({ root, config, backlog, input, cwd }) {
     if (/(?:specflow|sflow|sdlc)(?:\.mjs)?["']?\s+(init|branches\s+create|upgrade\s+--apply|install|uninstall)\b/i.test(cmd) || /\bspecify\s+init\b/i.test(cmd)) {
       return gate('Framework/Spec Kit setup, install/uninstall or branch creation changes the workspace; please confirm.');
     }
-    if (/\.(specflow|sdlc).(backlog|config|memory)\.json/i.test(cmd) && /(>|\btee\b|sed\s+-i|Set-Content|Out-File|Add-Content|writeFile|\brm\b|\bmv\b|\bcp\b|Remove-Item|Move-Item|Rename-Item)/i.test(cmd)) {
-      return gate('Shell command appears to modify specflow state files directly. Use the specflow CLI instead.');
+    if (writesStateFile(cmd)) {
+      // Same rule as Edit/Write on these files: never a prompt, always the CLI route.
+      return deny('This command writes a specflow state file (backlog, config or memory .json) directly. Lifecycle state is managed by the specflow CLI: use `specflow` subcommands instead. Reading the file is fine.');
     }
     const patterns = [...(config.guards?.destructive_bash_patterns || DEFAULT_DESTRUCTIVE_PATTERNS), ...(config.guards?.extra_bash_patterns || [])];
     for (const p of patterns) {
@@ -124,7 +150,7 @@ export function decide({ root, config, backlog, input, cwd }) {
   }
   if (INSTRUCTION_FILES.test(file) && fs.existsSync(file)) {
     if (rel === 'CLAUDE.md' && editOnlyTouchesMarkers(file, ti)) return null;
-    return ask('Editing an existing instruction file. The framework only manages its own marked block; confirm this change.');
+    return editAsk('Editing an existing instruction file. The framework only manages its own marked block; confirm this change.');
   }
 
   const first = rel.split('/')[0];
@@ -138,18 +164,18 @@ export function decide({ root, config, backlog, input, cwd }) {
   const item = backlog.features.find((f) => f.stage === 'implementing' && f.repos.includes(owner.name) && !f.dropped);
   // Lean PM: while an item is implementing, its builder writes the code in its own context and returns a short
   // report, so the main session stays small. Judged only for the main session (subagent calls carry agent_id).
-  if (item) return input.agent_id ? null : pmEditRule(config, owner.name, item);
+  if (item) return input.agent_id ? null : pmEditRule(config, owner.name, item, editAsk);
   if (mode === 'off') return null;
   const reason = `Source edit in repo "${owner.name}" while no feature touching it is in stage "implementing".`;
-  return mode === 'deny' ? deny(reason) : ask(reason);
+  return mode === 'deny' ? deny(reason) : editAsk(reason);
 }
 
 /** Main-session edit of product code while `item` is implementing (null = allowed). */
-function pmEditRule(config, repo, item) {
+function pmEditRule(config, repo, item, editAsk) {
   const rule = config.guards?.pm_source_edits ?? 'deny';
   if (rule === 'off') return null;
   const team = teamCfg({ config });
   if (!team.roles.builder.enabled && !team.roles.lead.enabled) return null; // the PM is the builder (role: pm fallback)
   const reason = `The specflow PM (main session) does not edit product code in "${repo}" while ${item.id} is implementing: dispatch the builder (\`specflow dispatch ${item.id} --repo ${repo}\`), which works in a fresh context and returns a short report, keeping this session small. To allow PM edits, set config guards.pm_source_edits to "ask" or "off".`;
-  return rule === 'ask' ? ask(reason) : deny(reason);
+  return rule === 'ask' ? editAsk(reason) : deny(reason);
 }
