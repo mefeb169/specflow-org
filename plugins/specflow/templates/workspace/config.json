@@ -92,7 +92,9 @@
   },
   "session": {
     "context_budget": 100000,
-    "repeat_every": 50000
+    "repeat_every": 50000,
+    "clear_at": "budget",
+    "soft_budget": 80000
   },
   "guards": {
     "source_edit_outside_implementing": "ask",

@@ -85,7 +85,7 @@ test('P5-3. team set --builder-batch validates; validate rejects a bad value', (
 test('P5-4. new workspaces get the 100k budget; migration 0.9.0 lowers only the untouched 0.8.0 default', () => {
   const fx = makeFixture();
   ok(cli(fx.root, 'init'));
-  assert.deepEqual(readCfg(fx.root).session, { context_budget: 100000, repeat_every: 50000 });
+  assert.deepEqual(readCfg(fx.root).session, { context_budget: 100000, repeat_every: 50000, clear_at: 'budget', soft_budget: 80000 });
   assert.equal(readCfg(fx.root).team.builder_batch, 5);
 
   const V9 = { SPECFLOW_FAKE_FRAMEWORK_VERSION: '0.9.0' };
