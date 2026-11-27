@@ -50,7 +50,7 @@ Restyle an existing product in conform mode. Edit `spec.md` or acceptance criter
    - Copy: every label, CTA, error and empty-state string; active voice, sentence case, one name per action across the whole flow; errors say what went wrong and how to fix it; empty states invite an action.
    - Accessibility: keyboard path and focus order, contrast, reduced motion, accessible names, responsive behavior.
    - Design tokens used / new.
-5. **Optional prototype** only if asked or direction mode needs a visual check. If a UI repo already has Playwright, Cypress or Storybook (`ui.visual_test_tools` in the scan), render and screenshot it and critique the result. Never install tooling. If no screenshot was taken, say so.
+5. **Optional prototype** only if asked or direction mode needs a visual check. If a UI repo already has Playwright, Cypress or Storybook (`ui.visual_test_tools` in the scan), render and screenshot it and critique the result (a few cropped screenshots of the key screens; do not iterate by re-capturing). Never install tooling. If no screenshot was taken, say so.
 6. Run `specflow status <id>`; `ux.complete` must be true. Hand off to `specflow:architect`.
 
 ## Done when

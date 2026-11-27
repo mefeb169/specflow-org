@@ -1,14 +1,34 @@
 // Handoff file: a short, regenerated summary of one work item so a new session can resume without re-reading artifacts.
 import fs from 'node:fs';
 import path from 'node:path';
-import { handoffRel, now, repoDir, specDirAbs, childrenOf } from './state.mjs';
+import { handoffRel, now, repoDir, specDirAbs, childrenOf, isContainer } from './state.mjs';
 import { currentBranch, headSha } from './git.mjs';
-import { checkTasks, requiredGates } from './gates.mjs';
+import { checkTasks, requiredGates, uxCheck } from './gates.mjs';
+import { GATE_STAGE } from './lifecycle.mjs';
+import { reposTodo } from './dispatch.mjs';
 import { latestEvidence, readEvidence } from './verify.mjs';
 import { nextAction } from './render.mjs';
 
 const MAX_LINES = 60;
 const short = (s) => (s ? String(s).slice(0, 8) : '-');
+/** The one command (or instruction) a fresh session runs to continue this item. */
+export function resumeCommand(ctx, f) {
+  if (f.dropped || f.stage === 'done') return 'specflow next';
+  if (isContainer(ctx, f)) {
+    const k = childrenOf(ctx, f.id).find((c) => c.stage !== 'done' && !c.dropped);
+    return k ? `specflow dispatch ${k.id} --json (slice of ${f.id})` : `specflow stage set ${f.id} done`;
+  }
+  if (f.blockers.some((b) => b.open)) return `specflow status ${f.id} (resolve the open blocker first)`;
+  const uxPending = f.stage === 'specified' && uxCheck(ctx, f).length > 0;
+  const gate = requiredGates(ctx, f).find((g) => GATE_STAGE[g] === f.stage && !f.gates[g]);
+  if (gate && !uxPending) return `present the ${gate} gate to the user (specflow gate required ${f.id})`;
+  if (['planned', 'implementing'].includes(f.stage) && f.repos.length) {
+    const todo = reposTodo(ctx, f);
+    if (!todo.length) return `specflow check tasks ${f.id}, then specflow stage set ${f.id} verifying`;
+    return `specflow dispatch ${f.id}${f.repos.length > 1 ? ` --repo ${todo[0]}` : ''} --json`;
+  }
+  return `specflow dispatch ${f.id} --json`;
+}
 const oneLine = (s) => String(s ?? '').replace(/\s+/g, ' ').trim();
 
 export function renderHandoff(ctx, f) {
@@ -22,6 +42,7 @@ export function renderHandoff(ctx, f) {
     `Updated: ${now()}   Lane: ${f.lane}   Milestone: ${f.milestone || '-'}`,
     '## Next step',
     oneLine(f.checkpoint?.next) || nextAction(ctx, f),
+    `Resume with: ${resumeCommand(ctx, f)}`,
     '## Note',
     oneLine(f.checkpoint?.note) || '-',
     '## Progress',

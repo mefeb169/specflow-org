@@ -4,7 +4,7 @@ import { open } from './common.mjs';
 import { validate } from '../lib/validate.mjs';
 import { writeHandoff } from '../lib/handoff.mjs';
 import { handoffRel } from '../lib/state.mjs';
-import { budgetCheck } from '../lib/session.mjs';
+import { boundaryCheck, budgetCheck } from '../lib/session.mjs';
 
 const o = open();
 if (o) {
@@ -24,7 +24,7 @@ if (o) {
   } catch { /* best effort */ }
   // Session budget: past it, keep the PM going for one more turn to checkpoint and hand over to a fresh session.
   try {
-    const reason = budgetCheck(o.ctx, o.input);
+    const reason = budgetCheck(o.ctx, o.input) || boundaryCheck(o.ctx, o.input);
     if (reason) process.stdout.write(JSON.stringify({ decision: 'block', reason }));
   } catch { /* never break the session */ }
 }

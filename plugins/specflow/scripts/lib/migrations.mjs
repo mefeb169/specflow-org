@@ -1,10 +1,12 @@
 // Additive, idempotent workspace migrations. Each runs only for workspaces created before `to`.
-// Rule: never delete or overwrite user data; only add missing keys.
+// Rule: never delete or overwrite user data; only add missing keys. One exception (0.9.0): a session budget still at
+// the exact 0.8.0 default is lowered to the new default; any other value is the user's and stays.
 import fs from 'node:fs';
 import path from 'node:path';
 import { LITE_GATES_DEFAULT, SLICING_DEFAULTS, UX_DEFAULTS } from './lifecycle.mjs';
 import { fillTeamDefaults, teamCfg } from './team.mjs';
-import { SESSION_DEFAULTS } from './session.mjs';
+import { SESSION_DEFAULTS, SESSION_DEFAULTS_0_8 } from './session.mjs';
+import { BUILDER_BATCH_DEFAULT } from './team.mjs';
 import { LEGACY_STATE_DIR, STATE_DIR, UserError, paths, readJson } from './state.mjs';
 
 const gitignorePath = (ctx) => path.join(ctx.root, '.gitignore');
@@ -123,15 +125,50 @@ export const MIGRATIONS = [
     describe: 'Token efficiency: session budget, lean PM (no main-session code edits while a builder can work), model policy by task complexity',
     plan(ctx) {
       const out = [];
-      if (!ctx.config.session) out.push(`config.session = context_budget:${SESSION_DEFAULTS.context_budget}, repeat_every:${SESSION_DEFAULTS.repeat_every}`);
+      if (!ctx.config.session) out.push(`config.session = context_budget:${SESSION_DEFAULTS_0_8.context_budget}, repeat_every:${SESSION_DEFAULTS_0_8.repeat_every}`);
       if (ctx.config.guards && ctx.config.guards.pm_source_edits === undefined) out.push('config.guards.pm_source_edits = deny');
       if (ctx.config.team && ctx.config.team.model_policy === undefined) out.push('config.team.model_policy = auto (role models become ceilings)');
       return out;
     },
     apply(ctx) {
-      ctx.config.session ??= { ...SESSION_DEFAULTS };
+      ctx.config.session ??= { ...SESSION_DEFAULTS_0_8 }; // 0.9.0 lowers it
       if (ctx.config.guards) ctx.config.guards.pm_source_edits ??= 'deny';
       if (ctx.config.team) ctx.config.team.model_policy ??= 'auto';
+    },
+  },
+  {
+    to: '0.9.0',
+    describe: 'Smaller runs: builder task batches; session budget 100k (from the untouched 0.8.0 default of 150k)',
+    plan(ctx) {
+      const out = [];
+      const s = ctx.config.session;
+      if (s && s.context_budget === SESSION_DEFAULTS_0_8.context_budget) out.push(`config.session.context_budget ${SESSION_DEFAULTS_0_8.context_budget} -> ${SESSION_DEFAULTS.context_budget} (still the 0.8.0 default)`);
+      if (s && s.repeat_every === SESSION_DEFAULTS_0_8.repeat_every) out.push(`config.session.repeat_every ${SESSION_DEFAULTS_0_8.repeat_every} -> ${SESSION_DEFAULTS.repeat_every} (still the 0.8.0 default)`);
+      if (ctx.config.team && ctx.config.team.builder_batch === undefined) out.push(`config.team.builder_batch = ${BUILDER_BATCH_DEFAULT} (tasks per builder run)`);
+      return out;
+    },
+    apply(ctx) {
+      const s = ctx.config.session;
+      if (s && s.context_budget === SESSION_DEFAULTS_0_8.context_budget) s.context_budget = SESSION_DEFAULTS.context_budget;
+      if (s && s.repeat_every === SESSION_DEFAULTS_0_8.repeat_every) s.repeat_every = SESSION_DEFAULTS.repeat_every;
+      if (ctx.config.team) ctx.config.team.builder_batch ??= BUILDER_BATCH_DEFAULT;
+    },
+  },
+  {
+    to: '0.10.0',
+    describe: 'Clear points and task cards: session.clear_at/soft_budget (boundary clearing is opt-in), team.task_models',
+    plan(ctx) {
+      const out = [];
+      const s = ctx.config.session;
+      if (s && s.clear_at === undefined) out.push(`config.session.clear_at = ${SESSION_DEFAULTS.clear_at}`);
+      if (s && s.soft_budget === undefined) out.push(`config.session.soft_budget = ${SESSION_DEFAULTS.soft_budget}`);
+      if (ctx.config.team && ctx.config.team.task_models === undefined) out.push('config.team.task_models = true (model tags on tasks)');
+      return out;
+    },
+    apply(ctx) {
+      const s = ctx.config.session;
+      if (s) { s.clear_at ??= SESSION_DEFAULTS.clear_at; s.soft_budget ??= SESSION_DEFAULTS.soft_budget; }
+      if (ctx.config.team) ctx.config.team.task_models ??= true;
     },
   },
 ];

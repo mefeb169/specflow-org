@@ -2,7 +2,7 @@ import path from 'node:path';
 import { UserError, childrenOf, getFeature, slicingCfg, getRepo, logHistory, now, repoDir } from '../lib/state.mjs';
 import { GATES, GATE_STAGE, STAGES, stageIdx } from '../lib/lifecycle.mjs';
 import { checkEntry, checkTasks, clearDownstreamGates, requiredGates, sizeCounts, traits } from '../lib/gates.mjs';
-import { branchExists, isDirty, isGitRepo, switchBranch } from '../lib/git.mjs';
+import { branchExists, currentBranch, isDirty, isGitRepo, switchBranch } from '../lib/git.mjs';
 import { refreshHandoff } from '../lib/handoff.mjs';
 import { io, emit, need } from './io.mjs';
 
@@ -93,14 +93,17 @@ export function cmdBranches(args, ctx) {
   if (!['planned', 'implementing'].includes(f.stage)) throw new UserError(`Branches are created once the feature is "planned" (implement gate approved); ${id} is at "${f.stage}".`);
   if (requiredGates(ctx, f).includes('implement') && !f.gates.implement) throw new UserError(`Gate "implement" must be approved first (specflow gate approve ${id} implement).`);
   need(f.spec_dir, `${id} has no spec_dir`);
-  const slug = path.basename(f.spec_dir);
+  // A slice's spec_dir is <parent>/slices/<x>; its branch is named after the parent feature's spec folder.
+  const parent = f.parent ? getFeature(ctx, f.parent) : null;
+  const slug = path.basename(parent?.spec_dir || f.spec_dir);
   const name = (ctx.config.branch_pattern || '{spec_slug}').replace('{spec_slug}', slug).replace('{id}', f.id);
   const results = [];
   for (const rn of f.repos) {
     const repo = getRepo(ctx, rn); const dir = repoDir(ctx, repo);
     if (!isGitRepo(dir)) { results.push({ repo: rn, status: 'skipped', detail: 'not a git repository' }); continue; }
     const existed = branchExists(dir, name);
-    if (isDirty(dir) && !(existed && f.branches[rn] === name)) { results.push({ repo: rn, status: 'refused', detail: 'uncommitted changes; commit or stash first' }); continue; }
+    const onIt = existed && currentBranch(dir) === name;
+    if (isDirty(dir) && !onIt && !(existed && f.branches[rn] === name)) { results.push({ repo: rn, status: 'refused', detail: 'uncommitted changes; commit or stash first' }); continue; }
     const r = switchBranch(dir, name);
     if (!r.ok) { results.push({ repo: rn, status: 'failed', detail: r.err }); continue; }
     f.branches[rn] = name;

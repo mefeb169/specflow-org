@@ -20,6 +20,7 @@ import { cmdSetup } from './commands/setup.mjs';
 import { cmdTeam } from './commands/team.mjs';
 import { cmdUpgrade } from './commands/upgrade.mjs';
 import { cmdInstall, cmdUninstall } from './commands/install.mjs';
+import { cmdUsage } from './commands/usage.mjs';
 
 const HELP = `specflow <command>   (alias: sflow)
   init [--root-is-repo] | scan | doctor | validate | brief | upgrade [--apply] | --version
@@ -41,13 +42,14 @@ const HELP = `specflow <command>   (alias: sflow)
   pref set <key> <value> [--by role] | pref list | pref rm <key>
   decision add "<question>" "<answer>" [--feature id --by who] | decision list [--feature id --limit n]
   lesson add "<text>" [--from id] | lesson list [--status s] | lesson promote|reject L-n
-  team [show] | team set <role> [--model m --enabled true|false] | team set --communication short|normal|detailed | team set --workflow feature|task
+  team [show] | team set <role> [--model m --enabled true|false] | team set --communication short|normal|detailed | team set --workflow feature|task | team set --task-models true|false
   team lead add <name> --repos a,b | team lead rm <name> | team generate
   setup questions | setup apply --answers <file.json> | setup status   (the setup interview as data; the setup skill asks the questions)
   dispatch <id> [--role r --repo name --question Q-n]   (packet for the PM: agent, model, prompt to spawn)
   deliver <id> [--dry-run] | deliver status <id> | deliver merge <id>   (push the branch, open or update ONE PR per repo; merge only in push-pr-merge mode)
   release step add <name> --run c [--repo r --kind deploy|migrate|restart|smoke|other --approval ask|none --timeout s --post] | release step rm <name> [--post] | release step list | release set --by-ai true|false [--require-merged true|false]
   release plan <id> | release run <id> [--step name --again] | release verify <id>   (release pipeline; run and verify only when release.by_ai is on)
+  usage [id] [--since date --all --transcripts dir]   (tokens per item and role, read from Claude Code transcripts)
   branches create <id>  verify run <id> --repo r [--kind k]  evidence add <id> --kind k --result r --note s
 All commands accept --json.`;
 
@@ -75,7 +77,7 @@ function main() {
     scan: cmdScan,
     doctor: (a, c) => { const d = doctor(c); emit(d, renderDoctor(d)); if (d.some((x) => !x.ok && x.name === 'state validation')) process.exitCode = 1; },
     repo: cmdRepo, feature: cmdFeature, dep: cmdDep, blocker: cmdBlocker, stage: cmdStage, gate: cmdGate, check: cmdCheck,
-    branches: cmdBranches, verify: cmdVerify, evidence: cmdEvidence, status: cmdStatus, next: cmdNext, validate: cmdValidate, upgrade: cmdUpgrade, slice: cmdSlice, issue: cmdIssue, question: cmdQuestion, intake: cmdIntake, pref: cmdPref, decision: cmdDecision, lesson: cmdLesson, checkpoint: cmdCheckpoint, rework: cmdRework, focus: cmdFocus, interrupt: cmdInterrupt, resume: cmdResume, milestone: cmdMilestone, team: cmdTeam, dispatch: cmdDispatch, setup: cmdSetup, deliver: cmdDeliver, release: cmdRelease,
+    branches: cmdBranches, verify: cmdVerify, evidence: cmdEvidence, status: cmdStatus, next: cmdNext, validate: cmdValidate, upgrade: cmdUpgrade, slice: cmdSlice, issue: cmdIssue, question: cmdQuestion, intake: cmdIntake, pref: cmdPref, decision: cmdDecision, lesson: cmdLesson, checkpoint: cmdCheckpoint, rework: cmdRework, focus: cmdFocus, interrupt: cmdInterrupt, resume: cmdResume, milestone: cmdMilestone, team: cmdTeam, dispatch: cmdDispatch, setup: cmdSetup, deliver: cmdDeliver, release: cmdRelease, usage: cmdUsage,
   };
   const fn = commands[cmd];
   if (!fn) throw new UserError(`Unknown command "${cmd}". Run \`specflow help\`.`);

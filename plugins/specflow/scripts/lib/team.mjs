@@ -21,6 +21,9 @@ export const modelOk = (m) => typeof m === 'string' && (['opus', 'sonnet', 'haik
 export const anyUiRepo = (ctx) => (ctx.config.repos || []).some((r) => r.ui === true);
 
 /** Effective team config: defaults overlaid with config.team. ux is enabled when any repo is UI, unless config says otherwise. */
+/** Tasks one builder run takes (0 = every open task of the repo in one run). Short runs keep the builder context small. */
+export const BUILDER_BATCH_DEFAULT = 5;
+
 export function teamCfg(ctx) {
   const t = ctx.config.team || {};
   const roles = {};
@@ -29,7 +32,7 @@ export function teamCfg(ctx) {
     const enabled = given.enabled !== undefined ? given.enabled : r === 'ux' ? anyUiRepo(ctx) : r === 'lead' ? (t.leads || []).length > 0 : r === 'release' ? !!ctx.config.release?.by_ai : true;
     roles[r] = { enabled: !!enabled, model: given.model || DEFAULT_MODEL[r] };
   }
-  return { roles, leads: (t.leads || []).map((l) => ({ name: l.name, repos: [...l.repos] })), locked: [...(t.locked || [])], communication: t.communication || 'short', workflow: t.workflow || 'feature', model_policy: t.model_policy || 'auto' };
+  return { roles, leads: (t.leads || []).map((l) => ({ name: l.name, repos: [...l.repos] })), locked: [...(t.locked || [])], communication: t.communication || 'short', workflow: t.workflow || 'feature', model_policy: t.model_policy || 'auto', builder_batch: t.builder_batch ?? BUILDER_BATCH_DEFAULT, task_models: t.task_models ?? true };
 }
 
 export const deliveryCfg = (ctx) => ({ mode: 'push-pr', target_branch: null, pr_tool: 'gh', ...(ctx.config.delivery || {}) });
@@ -69,6 +72,8 @@ export function validateTeam(ctx) {
   if (!COMMUNICATION.includes(t.communication)) e.push(`team.communication must be one of ${COMMUNICATION.join(', ')}`);
   if (!WORKFLOWS.includes(t.workflow)) e.push(`team.workflow must be one of ${WORKFLOWS.join(', ')}`);
   if (!['auto', 'fixed'].includes(t.model_policy)) e.push('team.model_policy must be auto or fixed');
+  if (!(Number.isInteger(t.builder_batch) && t.builder_batch >= 0)) e.push('team.builder_batch must be a whole number >= 0 (0 = one run per repo)');
+  if (typeof t.task_models !== 'boolean') e.push('team.task_models must be true or false');
   const names = new Set((ctx.config.repos || []).map((r) => r.name));
   const seen = new Map();
   for (const l of t.leads) {

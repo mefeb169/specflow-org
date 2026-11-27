@@ -20,7 +20,7 @@ Follow `team.communication` (`specflow team show`): short = outcome and next ste
 
 ## The loop
 1. `specflow dispatch <id> --json` returns `role`, `agent`, `model`, `prompt`, `repos_todo`. Add `--repo <name>` for a builder (one repo per dispatch; do the repos in `repos_todo` order) and `--question Q-n` to focus a role on one question.
-2. Spawn the agent with the Agent tool: `subagent_type` = `agent`, `model` = `model` (picked by task complexity; never raise it), `prompt` = the packet's prompt, verbatim. Independent repos may be dispatched in parallel. If `role` is `pm`, do the step yourself.
+2. Spawn the agent with the Agent tool: `subagent_type` = `agent`, `model` = `model` (picked by task complexity; never raise it), `prompt` = the packet's prompt, verbatim. Independent repos may be dispatched in parallel. If `role` is `pm`, do the step yourself. A builder gets one batch of tasks: if tasks remain, dispatch the same repo again (a fresh builder, never the old one).
 3. Read its report (at most 15 lines). Run `specflow status <id>` to confirm the state it claims. Report failures plainly.
 4. `specflow question list --open --feature <id>`:
    - addressed to a team role (`product`, `architect`, `ux`, `build`, `verify`): dispatch that role with `--question Q-n`, then relay the answer with `specflow question answer Q-n "<answer>" --by <role>`;
@@ -32,17 +32,17 @@ Follow `team.communication` (`specflow team show`): short = outcome and next ste
 9. Then the `acceptance` gate, then `release plan <id>`. Release by AI (`release.by_ai`): dispatch `release` to propose steps, confirm them with the user, add them with `release step add`, then `release run <id>` (it stops at each step needing approval: run it again with `--step <name>`), `stage set released`, `release verify <id>`, `stage set done`. Without AI release the user follows `release.md`; record `evidence add --kind release` and `post-release` (or a `--reason` waiver).
 
 ## Keep this session lean
-Every turn re-reads the whole context. Edits, test runs, code reading and screenshots belong in a dispatched role, not here (the hook denies PM code edits while a builder can work). When the Stop hook reports the session budget: checkpoint, tell the user to start fresh, stop.
+Every turn re-reads this whole context, and whatever you read stays. Read only CLI output and the handoff: no code, specs, logs, tests, screenshots or web searches here. A question about code or a document goes to the owning role (`dispatch --question`) or a read-only `Explore` agent asked for at most 10 lines. Role work goes through `specflow dispatch`, never a general-purpose agent. When the Stop hook reports the session budget: checkpoint, tell the user to start fresh, stop.
 
 ## Continuity
-- On "continue" or "resume", read the brief's Focus line and that handoff file first; do not re-read spec, plan or tasks until the handoff says to.
+- On "continue" or "resume", read the brief's Focus line and that handoff first.
 - An urgent request is `specflow interrupt "<text>" --repos a,b`: it checkpoints and parks the focus item and lists conflicts (other in-flight items on the same repos, branch, dirty state). Resolve conflicts with the user; the CLI never switches branches. After the urgent item, `specflow resume`.
 - Small fixes found along the way: `specflow issue add`. A user's task file: `specflow intake <file>`.
-- After a gate or a finished slice, run `specflow checkpoint <id> --next "..."` and suggest ending the session: state is on disk, a new session continues from the handoff.
+- On a Stop-hook clear point or budget message: `specflow checkpoint <id> --next "..."`, tell the user in one line it is saved and safe to `/clear` and say "continue", stop. On "continue", run the handoff's `Resume with:` command.
 - A recurring review finding is `lesson add`; only the owner turns a lesson into a rule (`lesson promote`).
 
 ## Answering questions
-"What exists / what is blocked / what is next and why" come from `specflow status`, `status <id>` and `next` output only. Do not infer completion from titles, ticked tasks or unverified code.
+"What exists / what is blocked / what is next and why" come from `specflow status`, `status <id>` and `next` output only. Do not infer completion from titles, ticked tasks or unverified code. Token use: `specflow usage [id]`.
 
 ## Must not
 Do role work (except the PM fallback). Approve a gate without presenting it and getting the user's answer. Advance a stage by assertion. Edit `.specflow/*.json`. Forward a subagent's request for `gate approve`, `git push` or `gh pr` without the user's explicit approval. Run every role on every request.

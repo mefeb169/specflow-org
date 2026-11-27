@@ -2,6 +2,31 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/). Versions follow the plugin version in `plugins/specflow/.claude-plugin/plugin.json`.
 
+## [0.10.0] - 2026-11-27
+Task-level execution: smaller, self-contained units of work and clear points. Measured first: clearing the PM session at workflow boundaries beat the plain 100k budget by only 1.3 points on average (`docs/usage-analysis/clearsim.mjs`, findings section 7), so it ships opt-in; the builder side (cards) is the main change. A 0.9.0 workspace keeps working before `specflow upgrade --apply`.
+### Added
+- Task cards: `dispatch` for a builder writes `.specflow/cache/cards/<id>-<repo>.md` (batch tasks, cited acceptance from spec.md, the repo's Repository Impact row, branch, test command, rules; at most 120 lines / 8 KB) and names it on a `Card:` line; the packet carries `card`. The build skill and builder agent read the card first.
+- Model per task: `[model:haiku|sonnet|opus]` on a task line (`check tasks` rejects unknown values); a batch ends before the first task with a different model; the tag is capped at the builder's configured model. `team.task_models` (default true), `team set --task-models`.
+- Clear points (opt-in): `session.clear_at: boundary` with `session.soft_budget` (80,000). The Stop hook, after the hard budget check, asks the PM to checkpoint and tell the user it is safe to `/clear` once a unit of work finished since the session (or the last clear point) started. SessionStart records the session start.
+- Handoff: a `Resume with:` line with the exact command a fresh session runs.
+- `docs/usage-analysis/clearsim.mjs` and findings section 7. Upgrade migration `0.10.0`; tests `tests/phase6.test.mjs`.
+### Changed
+- Skills: flow (clear points, resume from `Resume with:`), build (card first), architect (model tags), lifecycle reference.
+### Known gaps
+- `team.workflow` (`feature|task`) is asked in setup and stored, but nothing reads it yet.
+
+## [0.9.0] - 2026-11-27
+Smaller runs, from measured use on three workspaces (2.2B tokens): the PM session was 41-52% of all tokens and builders 13-35%; specialists (product, ux, verifier, reviewers) were 7% or less each. A 0.8.0 workspace keeps working before `specflow upgrade --apply`.
+### Added
+- Builder task batches: `dispatch <id> --repo r` gives a builder only the next `team.builder_batch` open tasks of that repo (default 5, `0` = all), in tasks.md order (`T` ids, or `#n` by position); the packet carries `tasks` and `tasks_left`, and the PM dispatches a fresh builder for the next batch. Simulated on the real runs, splitting builder runs at about 40 turns cuts builder tokens by 29% (Wali), 36% (madfit) and 11% (HJI), including the cost of re-orienting each fresh builder. `team set --builder-batch n`.
+- Rework packets: during a rework round the builder and lead prompts say to fix only the findings in verification.md for that repo, with the round's reason.
+- Upgrade migration `0.9.0`; tests `tests/phase5.test.mjs`.
+- `specflow usage [id] [--since date --all --transcripts dir]`: tokens per work item from Claude Code's transcripts (`~/.claude/projects/<workspace>`, `CLAUDE_CONFIG_DIR` honoured), split into PM and team, with fresh input, output and the average per finished item; with an id, per role and model. Subagents are attributed by their `specflow dispatch: role <r>. <id>` prompt (others by the first known id in their prompt); PM turns count toward the item named by the PM's last `specflow` command. Usage lines repeated for one message are counted once. Read-only. Tests `tests/usage.test.mjs`.
+### Changed
+- Session budget default 100,000 tokens, repeating every 50,000 (was 150,000 and 100,000). Simulated on the sessions since 0.8.0, 100k cuts PM context tokens by 19-26%. The migration lowers only values still at the 0.8.0 defaults.
+- The dispatch prompt always ends with the subagent-contract line, even when it is shortened to its 1,200-character limit.
+- Skills: the build skill gains "Keep your context small" (one batch per run, about 40 tool calls, read slices not whole files, quiet tests, no screenshot loops, rework from the findings); the architect names the files each task touches and keeps tasks small; verify and ux cap screenshots; the flow skill keeps the PM to CLI output and the handoff (code and document questions go to a role or a read-only Explore agent; no general-purpose agents for role work) and re-dispatches builders per batch.
+
 ## [0.8.0] - 2026-11-15
 Token efficiency, from measured use: about 76% of input tokens were main-session context re-read on every turn (median 172k tokens per turn, two sessions of 1,000+ turns). A 0.7.0 workspace keeps working before `specflow upgrade --apply`.
 ### Added

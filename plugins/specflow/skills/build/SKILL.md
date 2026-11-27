@@ -14,7 +14,7 @@ Implement exactly what the spec, plan and tasks say, following each repo's own c
 Stage is `planned` with the `implement` gate approved, or `implementing`.
 
 ## Inputs (read first)
-`specflow status <id>`, `specs/NNN/{spec,plan,tasks}.md`, `contracts/`, `data-model.md`, the Repository Impact table (deploy order), and, for the repo you are working in: its CLAUDE.md/AGENTS.md/copilot instructions and its entry in `.specflow/workspace-map.md`. Do not read other repos' internals beyond contracts.
+When dispatched: the **task card** named on the `Card:` line of the dispatch prompt is your first and usually only input (your tasks, the acceptance they cite, the repo's plan row, the rules). Open spec.md, plan.md or tasks.md only for a section the card lacks, a slice at a time. Otherwise (run directly by the user): `specflow status <id>`, `specs/NNN/{spec,plan,tasks}.md`, `contracts/`, `data-model.md`, the Repository Impact table (deploy order), and, for the repo you are working in: its CLAUDE.md/AGENTS.md/copilot instructions and its entry in `.specflow/workspace-map.md`. Do not read other repos' internals beyond contracts.
 
 ## Outputs (artifacts)
 Code, tests, docs updates in each affected repo, commits on the feature branch (local only), checked-off tasks in tasks.md, passing verification evidence per repo.
@@ -48,6 +48,15 @@ When all tasks are `[X]` and every repo has a passing `verify run` at HEAD: `spe
 3b. After each repo: `specflow checkpoint <id> --next "<what remains>"`. During a rework round (`specflow status <id>` shows it) fix on the same branch(es); do not push or open a new PR; re-run verify.
 4. When all repos are green and every task is `[X]`: `specflow check tasks <id>`, then `specflow stage set <id> verifying`.
 If a repo has no confirmed test command, do not invent one: tell the orchestrator (`specflow:discover` territory) and record manual evidence only with the user's help.
+
+## Keep your context small
+Every turn re-reads everything already in your context, so a long run costs far more than two short ones. Measured: the longest 10% of builder runs used about half of all builder tokens.
+- **Card first.** Read the card, not the whole spec/plan/tasks; it is regenerated for every dispatch.
+- **One batch per run.** Do only the tasks on the dispatch prompt's `Tasks this run` line. When they are done, or after about 40 tool calls, finish the task in hand, mark it `[X]`, run `specflow checkpoint <id> --next "<what remains>"` and return; a fresh builder takes the rest.
+- **Find, then read a slice.** Search first (`grep -n`, or `graphify query` where the repo uses it), then read only the lines you need (Read with offset/limit, `sed -n 'a,bp'`). Do not `cat` a whole source file longer than about 150 lines, and do not re-read a file you already have unless it changed. Start from the files the task names.
+- **Quiet tests.** Run the affected test file or pattern with a quiet reporter while working; the full suite once, before `verify run`. Keep only the failing part of the output (for example `2>&1 | tail -40`).
+- **No screenshot loops.** Check UI behaviour with tests and DOM or text queries. Visual comparison belongs to the verifier's (or ux's) single pass; if you must look, take at most 3 screenshots per run, cropped to what you changed, and never re-read an image.
+- **Rework round:** start from the findings in verification.md and the files they name; do not re-explore the feature.
 
 ## Done when
 All tagged tasks `[X]`; per-repo verification passes at current HEAD; no new open blockers; CLI accepted `verifying`.
