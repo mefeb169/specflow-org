@@ -59,14 +59,15 @@ const tierIdx = (m) => TIERS.indexOf(m);
  * auto: the role's tier for the item's complexity, capped at the configured model.
  * fixed, or a configured model outside the tier list (inherit, fable, claude-*): the configured model.
  */
-export function pickModel(ctx, f, role) {
+export function pickModel(ctx, f, role, taskModel = null) {
   const team = teamCfg(ctx);
   const ceiling = team.roles[role].model;
   const c = f ? complexity(ctx, f) : { level: 'medium', reasons: ['no work item'], override: false };
   const base = { ceiling, policy: team.model_policy, complexity: c.level, reasons: c.reasons };
   if (team.model_policy === 'fixed') return { ...base, model: ceiling, why: 'model_policy fixed' };
   if (tierIdx(ceiling) < 0 || !ROLE_TIERS[role]) return { ...base, model: ceiling, why: `configured model ${ceiling} is not a tier` };
-  const want = ROLE_TIERS[role][c.level];
+  const tagged = tierIdx(taskModel) >= 0;
+  const want = tagged ? taskModel : ROLE_TIERS[role][c.level];
   const model = TIERS[Math.min(tierIdx(want), tierIdx(ceiling))];
-  return { ...base, model, why: `complexity ${c.level}: ${c.reasons.join(', ')}${model !== want ? ` (capped at ${ceiling})` : ''}` };
+  return { ...base, model, why: `${tagged ? `task tag ${taskModel}` : `complexity ${c.level}: ${c.reasons.join(', ')}`}${model !== want ? ` (capped at ${ceiling})` : ''}` };
 }

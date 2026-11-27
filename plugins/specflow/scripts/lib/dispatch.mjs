@@ -29,8 +29,11 @@ function releaseLine(ctx, f) {
  */
 export function builderBatch(ctx, f, repo, size) {
   const open = (parseTasks(ctx, f) || []).map((t, i) => ({ ...t, ref: t.id || `#${i + 1}` })).filter((t) => !t.done && t.repo === repo);
-  const take = size > 0 ? open.slice(0, size) : open;
-  return { tasks: take.map((t) => t.ref), items: take, left: open.length, last: take.length === open.length };
+  let take = size > 0 ? open.slice(0, size) : open;
+  const tagged = teamCfg(ctx).task_models;
+  // A batch shares one model: it ends before the first task whose model tag differs from the first task's.
+  if (tagged && take.length > 1) { const i = take.findIndex((t) => t.model !== take[0].model); if (i > 0) take = take.slice(0, i); }
+  return { tasks: take.map((t) => t.ref), items: take, model: tagged && take[0] ? take[0].model : null, left: open.length, last: take.length === open.length };
 }
 
 function batchLine(b, repo) {
@@ -148,6 +151,6 @@ export function dispatch(ctx, f, flags = {}) {
   ].filter(Boolean);
   const tail = 'Follow the subagent contract in your agent definition.';
   const prompt = `${cut(lines.join('\n'), PROMPT_MAX - tail.length - 1)}\n${tail}`;
-  const m = pickModel(ctx, f, role);
+  const m = pickModel(ctx, f, role, batch ? batch.model : null);
   return { ...base, role, agent: ROLE_AGENT[role], model: m.model, model_ceiling: m.ceiling, complexity: m.complexity, model_reason: m.why, repo, lead: lead ? lead.name : null, repos_todo: todo, tasks: batch ? batch.tasks : null, card, tasks_left: batch ? batch.left : null, questions: qs.map((q) => q.id), prompt };
 }

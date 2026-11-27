@@ -213,3 +213,53 @@ test('P6-11. card: non-builder roles get none', () => {
   assert.doesNotMatch(d.prompt, /Card:/);
   fx.cleanup();
 });
+
+// ---- model per task ----
+
+const mt = (n, tag, repo = 'backend') => `- [ ] T0${String(n).padStart(2, '0')} [repo:${repo}] task ${n}${tag ? ` [model:${tag}]` : ''}`;
+
+test('P6-12. model tags: parsed, unknown values are a check error', () => {
+  const { fx, id } = setup([mt(1, 'haiku'), mt(2, 'Sonnet'), mt(3, 'gpt')]);
+  const r = cli(fx.root, 'check', 'tasks', id);
+  assert.notEqual(r.code, 0);
+  assert.match(r.out + r.err, /unknown model tag "gpt"/);
+  assert.doesNotMatch(r.out + r.err, /unknown model tag "sonnet"/, 'case-insensitive');
+  fx.cleanup();
+});
+
+test('P6-13. a batch ends at the first model change; the tag picks the model, capped at the ceiling', () => {
+  const { fx, id } = setup([mt(1, 'haiku'), mt(2, 'haiku'), mt(3, null), mt(4, null), mt(5, 'opus')]);
+  let d = j(fx.root, 'dispatch', id, '--repo', 'backend');
+  assert.deepEqual(d.tasks, ['T001', 'T002']);
+  assert.equal(d.model, 'haiku');
+  assert.match(d.model_reason, /task tag haiku/);
+  assert.match(d.prompt, /T001, T002 only \(2 of 5 open/);
+  // untagged tasks follow the item (full feature, 2 repos => high => sonnet builder)
+  fs.writeFileSync(path.join(fx.root, 'specs', '001-x', 'tasks.md'), [mt(3, null), mt(4, null), mt(5, 'opus')].join('\n') + '\n');
+  d = j(fx.root, 'dispatch', id, '--repo', 'backend');
+  assert.deepEqual(d.tasks, ['T003', 'T004']);
+  assert.doesNotMatch(d.model_reason, /task tag/);
+  // an opus tag is capped at the builder's sonnet ceiling
+  fs.writeFileSync(path.join(fx.root, 'specs', '001-x', 'tasks.md'), mt(5, 'opus') + '\n');
+  d = j(fx.root, 'dispatch', id, '--repo', 'backend');
+  assert.equal(d.model, 'sonnet');
+  assert.match(d.model_reason, /task tag opus \(capped at sonnet\)/);
+  fx.cleanup();
+});
+
+test('P6-14. model_policy fixed and team.task_models false ignore the tags', () => {
+  const { fx, id } = setup([mt(1, 'haiku'), mt(2, null), mt(3, 'haiku')]);
+  ok(cli(fx.root, 'team', 'set', '--task-models', 'false'));
+  assert.equal(readCfg(fx.root).team.task_models, false);
+  let d = j(fx.root, 'dispatch', id, '--repo', 'backend');
+  assert.deepEqual(d.tasks, ['T001', 'T002', 'T003'], 'no split');
+  assert.doesNotMatch(d.model_reason, /task tag/);
+  ok(cli(fx.root, 'team', 'set', '--task-models', 'true', '--model-policy', 'fixed'));
+  d = j(fx.root, 'dispatch', id, '--repo', 'backend');
+  assert.equal(d.model, 'sonnet');
+  assert.match(d.model_reason, /fixed/);
+  bad(cli(fx.root, 'team', 'set', '--task-models', 'maybe'), /true or false/);
+  patchCfg(fx.root, (c) => { c.team.task_models = 'yes'; });
+  assert.ok(JSON.parse(cli(fx.root, 'validate', '--json').out).errors.some((e) => /team.task_models/.test(e)));
+  fx.cleanup();
+});

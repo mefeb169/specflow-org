@@ -9,6 +9,8 @@ import { latestEvidence, readEvidence } from './verify.mjs';
 const readIf = (file) => (file && fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : null);
 
 /** Parse tasks.md checkbox lines. */
+export const TASK_MODELS = ['haiku', 'sonnet', 'opus'];
+
 export function parseTasks(ctx, f) {
   const dir = specDirAbs(ctx, f);
   const text = readIf(dir && path.join(dir, 'tasks.md'));
@@ -19,7 +21,8 @@ export function parseTasks(ctx, f) {
     if (!m) continue;
     const tag = m[2].match(/\[repo:([^\]]+)\]/);
     const id = m[2].match(/^(T\d+)\b/);
-    tasks.push({ done: m[1] !== ' ', repo: tag ? tag[1].trim() : null, text: m[2], id: id ? id[1] : null });
+    const mt = m[2].match(/\[model:([^\]]*)\]/);
+    tasks.push({ done: m[1] !== ' ', repo: tag ? tag[1].trim() : null, text: m[2], id: id ? id[1] : null, model: mt ? mt[1].trim().toLowerCase() : null });
   }
   return tasks;
 }
@@ -32,6 +35,7 @@ export function checkTasks(ctx, f) {
   if (tasks.length === 0) errors.push('tasks.md has no task lines');
   const names = new Set(ctx.config.repos.map((r) => r.name));
   tasks.forEach((t, i) => {
+    if (t.model && !TASK_MODELS.includes(t.model)) errors.push(`task #${i + 1} has unknown model tag "${t.model}" (use ${TASK_MODELS.join(', ')}): ${t.text.slice(0, 40)}`);
     if (!t.repo) errors.push(`task #${i + 1} has no [repo:<name>] tag: ${t.text.slice(0, 60)}`);
     else if (!names.has(t.repo)) errors.push(`task #${i + 1} names unregistered repo "${t.repo}"`);
     else {

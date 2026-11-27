@@ -63,7 +63,8 @@
     "communication": "short",
     "workflow": "feature",
     "model_policy": "auto",
-    "builder_batch": 5
+    "builder_batch": 5,
+    "task_models": true
   },
   "delivery": {
     "mode": "push-pr",
