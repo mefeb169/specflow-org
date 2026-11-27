@@ -148,3 +148,20 @@ What fills builder context (share of characters returned by tools):
 - PM attribution is an estimate: turns count toward the last item named in a `specflow` command.
 - The simulations assume context grows as it did in the real runs, and that the user restarts when the budget hook asks.
 - The savings figures are upper-bound estimates until measured. Re-measure after a few features on 0.9.0 with `specflow usage --since 2026-11-27`, and the same scripts with the date changed.
+
+## 7. Clear points (0.10.0)
+
+`docs/usage-analysis/clearsim.mjs`: restart the PM session at a workflow boundary (gate approved, stage to verifying/accepted/released/done, rework start) once context passes a soft threshold; hard budget 100k always applies. Restart costs 62k + 3 turns, main sessions since 2026-11-16.
+
+| Option | Wali App | madfit | HJI | Average |
+|---|---|---|---|---|
+| a. hard 100k only (0.9.0) | 26% | 19% | 23% | 22.7% |
+| b. boundary, soft 60k | 26% | 17% | 22% | 21.7% |
+| b. boundary, soft 70k | 26% | 20% | 24% | 23.3% |
+| b. boundary, soft 80k | 27% | 21% | 24% | **24.0%** |
+| b. boundary, soft 90k | 26% | 19% | 24% | 23.0% |
+| c. every dispatch return | 26% | 18% | 22% | 22.0% |
+
+(Tokens saved versus the actual PM context tokens.) Clearing after every dispatch return is no better than the plain budget, as predicted: a restart costs more than a builder batch adds to the PM context.
+
+**Decision:** the best boundary option (soft 80k) beats the hard budget by 1.3 points, under the 3-point rule, so `session.clear_at` defaults to `budget` (0.9.0 behaviour) and boundary clearing is opt-in (`clear_at: boundary`, `soft_budget` 80000). The bigger lever is the builder side (task cards, section 3).
