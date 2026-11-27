@@ -49,6 +49,14 @@ When all tasks are `[X]` and every repo has a passing `verify run` at HEAD: `spe
 4. When all repos are green and every task is `[X]`: `specflow check tasks <id>`, then `specflow stage set <id> verifying`.
 If a repo has no confirmed test command, do not invent one: tell the orchestrator (`specflow:discover` territory) and record manual evidence only with the user's help.
 
+## Keep your context small
+Every turn re-reads everything already in your context, so a long run costs far more than two short ones. Measured: the longest 10% of builder runs used about half of all builder tokens.
+- **One batch per run.** Do only the tasks on the dispatch prompt's `Tasks this run` line. When they are done, or after about 40 tool calls, finish the task in hand, mark it `[X]`, run `specflow checkpoint <id> --next "<what remains>"` and return; a fresh builder takes the rest.
+- **Find, then read a slice.** Search first (`grep -n`, or `graphify query` where the repo uses it), then read only the lines you need (Read with offset/limit, `sed -n 'a,bp'`). Do not `cat` a whole source file longer than about 150 lines, and do not re-read a file you already have unless it changed. Start from the files the task names.
+- **Quiet tests.** Run the affected test file or pattern with a quiet reporter while working; the full suite once, before `verify run`. Keep only the failing part of the output (for example `2>&1 | tail -40`).
+- **No screenshot loops.** Check UI behaviour with tests and DOM or text queries. Visual comparison belongs to the verifier's (or ux's) single pass; if you must look, take at most 3 screenshots per run, cropped to what you changed, and never re-read an image.
+- **Rework round:** start from the findings in verification.md and the files they name; do not re-explore the feature.
+
 ## Done when
 All tagged tasks `[X]`; per-repo verification passes at current HEAD; no new open blockers; CLI accepted `verifying`.
 

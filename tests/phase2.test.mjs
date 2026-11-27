@@ -467,8 +467,8 @@ test('P2-19. lean status: >30 open items and no milestone hide proposed ones wit
 
 test('P2-20. version in plugin.json and package.json; HELP lists every Phase 2 command', () => {
   const root = path.resolve(PLUGIN, '..', '..');
-  assert.equal(JSON.parse(read('.claude-plugin', 'plugin.json')).version, '0.8.0');
-  assert.equal(JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')).version, '0.8.0');
+  assert.equal(JSON.parse(read('.claude-plugin', 'plugin.json')).version, '0.9.0');
+  assert.equal(JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')).version, '0.9.0');
   const help = cli(path.resolve(PLUGIN), 'help').out;
   for (const c of ['team set', 'team lead add', 'team generate', 'dispatch <id>', 'setup questions', 'setup apply', 'setup status']) assert.ok(help.includes(c), c);
   const readme = fs.readFileSync(path.join(root, 'README.md'), 'utf8');

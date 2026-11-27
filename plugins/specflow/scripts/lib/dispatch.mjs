@@ -2,7 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { UserError, handoffRel, inDeployOrder, isContainer, isUi, specDirAbs } from './state.mjs';
-import { checkTasks, uxCheck } from './gates.mjs';
+import { checkTasks, parseTasks, uxCheck } from './gates.mjs';
 import { ROLE_AGENT, ROLE_FALLBACK, ROLE_TARGET, TEAM_ROLES, leadOf, releaseCfg, teamCfg, testingCfg } from './team.mjs';
 import { releaseFile } from './release.mjs';
 import { pickModel } from './models.mjs';
@@ -20,6 +20,24 @@ function releaseLine(ctx, f) {
   const r = releaseCfg(ctx);
   const prs = Object.entries(f.delivery || {}).map(([n, d]) => `${n} ${d.pr_state}`).join(', ');
   return `Release: ${r.steps.length} step(s) configured${r.steps.length ? '' : ' (propose some from the repo docs)'}; PRs: ${prs || 'none'}; plan file ${releaseFile(ctx, f)}. Never run release run; the PM does.`;
+}
+
+/**
+ * The open tasks of one repo a single builder run takes: the first `team.builder_batch` (all when 0), in tasks.md order.
+ * Short runs keep the builder's context small; the PM dispatches a fresh builder for the next batch.
+ */
+export function builderBatch(ctx, f, repo, size) {
+  const open = (parseTasks(ctx, f) || []).map((t, i) => ({ ...t, ref: t.id || `#${i + 1}` })).filter((t) => !t.done && t.repo === repo);
+  const take = size > 0 ? open.slice(0, size) : open;
+  return { tasks: take.map((t) => t.ref), left: open.length, last: take.length === open.length };
+}
+
+function batchLine(b, repo) {
+  if (!b.left) return '';
+  const list = cut(b.tasks.join(', '), 140);
+  return b.last
+    ? `Tasks this run: the last ${b.left} open task(s) of ${repo} (${list}).`
+    : `Tasks this run: ${list} only (${b.tasks.length} of ${b.left} open in ${repo}). Then mark them, checkpoint and return; the PM dispatches a fresh builder for the rest.`;
 }
 
 /** Role that owns the work leaving the item's current stage (same routing as nextAction), before team config applies. */
@@ -108,11 +126,14 @@ export function dispatch(ctx, f, flags = {}) {
   const dir = specDirAbs(ctx, f);
   const have = dir ? ARTIFACTS.filter((a) => fs.existsSync(path.join(dir, a))) : [];
   const round = f.rework.find((r) => !r.closed_at);
+  const batch = role === 'builder' && repo ? builderBatch(ctx, f, repo, team.builder_batch) : null;
   const shown = qs.slice(0, 4).map((q) => `${q.id} ${cut(q.text, 80)}`).join(' | ') + (qs.length > 4 ? ` (+${qs.length - 4} more: specflow question list --open --feature ${f.id})` : '');
   const lines = [
     `specflow dispatch: role ${role}. ${f.id} "${cut(f.title, 60)}" (${f.kind}, lane ${f.lane}, stage ${f.stage}${round ? `, rework round ${round.n}: ${cut(round.reason, 60)}` : ''}).`,
     eff.covers.length ? `You cover the disabled ${eff.covers.join(', ')} role.` : '',
     repo ? `Repo: ${repo}${todo.length > 1 ? ` (repos still to do, deploy order: ${todo.join(', ')})` : ''}` : '',
+    batch ? batchLine(batch, repo) : '',
+    round && ['builder', 'lead'].includes(role) ? `Rework: fix only the findings${repo ? ` for ${repo}` : ''} in verification.md (round ${round.n}: ${cut(round.reason, 160)}); start from the files they name.` : '',
     lead ? `Lead area: ${lead.name} (repos: ${lead.repos.filter((n) => f.repos.includes(n)).join(', ')})` : '',
     `Handoff: ${handoff}${fs.existsSync(path.resolve(ctx.root, handoff)) ? '' : ' (not written yet)'}`,
     `Spec dir: ${f.spec_dir || '(none)'}${have.length ? ` (${have.join(', ')})` : ''}`,
@@ -121,9 +142,9 @@ export function dispatch(ctx, f, flags = {}) {
     role === 'release' ? releaseLine(ctx, f) : '',
     qs.length ? `Open questions for you: ${shown}` : '',
     `PM update level: ${team.communication}.`,
-    'Follow the subagent contract in your agent definition.',
   ].filter(Boolean);
-  const prompt = cut(lines.join('\n'), PROMPT_MAX);
+  const tail = 'Follow the subagent contract in your agent definition.';
+  const prompt = `${cut(lines.join('\n'), PROMPT_MAX - tail.length - 1)}\n${tail}`;
   const m = pickModel(ctx, f, role);
-  return { ...base, role, agent: ROLE_AGENT[role], model: m.model, model_ceiling: m.ceiling, complexity: m.complexity, model_reason: m.why, repo, lead: lead ? lead.name : null, repos_todo: todo, questions: qs.map((q) => q.id), prompt };
+  return { ...base, role, agent: ROLE_AGENT[role], model: m.model, model_ceiling: m.ceiling, complexity: m.complexity, model_reason: m.why, repo, lead: lead ? lead.name : null, repos_todo: todo, tasks: batch ? batch.tasks : null, tasks_left: batch ? batch.left : null, questions: qs.map((q) => q.id), prompt };
 }

@@ -62,7 +62,8 @@
     "locked": [],
     "communication": "short",
     "workflow": "feature",
-    "model_policy": "auto"
+    "model_policy": "auto",
+    "builder_batch": 5
   },
   "delivery": {
     "mode": "push-pr",
@@ -90,8 +91,8 @@
     "skills": []
   },
   "session": {
-    "context_budget": 150000,
-    "repeat_every": 100000
+    "context_budget": 100000,
+    "repeat_every": 50000
   },
   "guards": {
     "source_edit_outside_implementing": "ask",

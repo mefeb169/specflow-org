@@ -18,7 +18,8 @@ export function parseTasks(ctx, f) {
     const m = line.match(/^\s*- \[( |x|X)\]\s*(.*)$/);
     if (!m) continue;
     const tag = m[2].match(/\[repo:([^\]]+)\]/);
-    tasks.push({ done: m[1] !== ' ', repo: tag ? tag[1].trim() : null, text: m[2] });
+    const id = m[2].match(/^(T\d+)\b/);
+    tasks.push({ done: m[1] !== ' ', repo: tag ? tag[1].trim() : null, text: m[2], id: id ? id[1] : null });
   }
   return tasks;
 }

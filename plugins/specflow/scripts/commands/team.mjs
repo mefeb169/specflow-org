@@ -4,16 +4,16 @@ import { COMMUNICATION, ROLE_AGENT, TEAM_ROLES, WORKFLOWS, anyUiRepo, leadOf, ma
 import { table } from '../lib/render.mjs';
 import { csv, emit, need } from './io.mjs';
 
-const USAGE = 'usage: team [show] | team set <role> [--model m] [--enabled true|false] | team set --communication short|normal|detailed | team set --workflow feature|task | team set --model-policy auto|fixed | team lead add <name> --repos a,b | team lead rm <name> | team generate';
+const USAGE = 'usage: team [show] | team set <role> [--model m] [--enabled true|false] | team set --communication short|normal|detailed | team set --workflow feature|task | team set --model-policy auto|fixed | team set --builder-batch n | team lead add <name> --repos a,b | team lead rm <name> | team generate';
 
 function show(ctx) {
   const t = teamCfg(ctx);
   const roles = TEAM_ROLES.map((r) => ({ role: r, enabled: t.roles[r].enabled, model: t.roles[r].model, agent: ROLE_AGENT[r], locked: t.locked.includes(r) }));
-  const data = { roles, leads: t.leads, locked: t.locked, communication: t.communication, workflow: t.workflow, model_policy: t.model_policy };
+  const data = { roles, leads: t.leads, locked: t.locked, communication: t.communication, workflow: t.workflow, model_policy: t.model_policy, builder_batch: t.builder_batch };
   emit(data, () => [
     table(roles.map((r) => ({ ...r, enabled: r.enabled ? 'yes' : 'no', locked: r.locked ? 'yes' : '' })), ['role', 'enabled', 'model', 'agent', 'locked']),
     `leads: ${t.leads.length ? t.leads.map((l) => `${l.name} (${l.repos.join(', ')})`).join('; ') : '(none)'}`,
-    `communication: ${t.communication} | workflow: ${t.workflow} | model policy: ${t.model_policy}${t.model_policy === 'auto' ? ' (lowest model tier that fits each item, capped at the role model)' : ''}`,
+    `communication: ${t.communication} | workflow: ${t.workflow} | model policy: ${t.model_policy}${t.model_policy === 'auto' ? ' (lowest model tier that fits each item, capped at the role model)' : ''} | builder batch: ${t.builder_batch ? `${t.builder_batch} tasks per run` : 'off (one run per repo)'}`,
   ].join('\n'));
 }
 
@@ -47,6 +47,12 @@ export function cmdTeam(args, ctx) {
     if (mp !== undefined) {
       if (!['auto', 'fixed'].includes(mp)) throw new UserError('--model-policy must be auto or fixed');
       team.model_policy = mp; touched.push('model_policy');
+    }
+    const bb = f['builder-batch'] ?? f.builder_batch;
+    if (bb !== undefined) {
+      const n = Number(bb);
+      if (!(Number.isInteger(n) && n >= 0)) throw new UserError('--builder-batch must be a whole number >= 0 (0 = one run per repo)');
+      team.builder_batch = n; touched.push('builder_batch');
     }
     if (!touched.length) throw new UserError(USAGE);
     ctx.saveConfig();

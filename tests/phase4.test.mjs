@@ -134,6 +134,7 @@ test('P4-4. Stop hook: past the budget it blocks once with a checkpoint request,
   const fx = setup();
   const id = addF(fx.root, 'Focus me');
   ok(cli(fx.root, 'focus', id));
+  patchCfg(fx.root, (c) => { c.session = { context_budget: 150000, repeat_every: 100000 }; });
   assert.equal(stop(fx.root, transcript(fx.root, [[90000]])).json, null, 'under budget');
   const r = stop(fx.root, transcript(fx.root, [[160000], [500000, true]]));
   assert.equal(r.json.decision, 'block', 'a subagent turn (sidechain) never counts as the last main turn');

@@ -475,6 +475,9 @@ Docs: README command reference and "Daily use" rows (interrupt, resume, checkpoi
 - `release run` executes configured commands through the shell as given; the safety is the approval prompt and the `ask` default, not command inspection.
 - Not exercised: Node 18, macOS/Linux. Full suite takes roughly 2 minutes here.
 
+### 0.9.0 "Usage measurement and smaller runs", branch `task-6-token-efficiency`
+Implemented 2026-11-27, not committed yet. Spec, files, tests and deviations: Part I at the end of this file. Measurements behind it: [docs/usage-findings.md](../docs/usage-findings.md).
+
 ---
 
 # Part G: Phase 2 build spec — 0.6.0 "Team model"
@@ -671,3 +674,105 @@ Migration `0.7.0`: extends `release` with `steps: []`, `post_release: []`, `requ
 - Smoke test on the copy of Wali's state (Wali untouched): upgrade 0.6.0 -> 0.7.0 applied, `validate` clean; `deliver F-005 --dry-run` refuses with the right reasons; `release plan F-005` writes the plan with the migration warning.
 - Not verified: real `gh` output (the "no pull request found" detection is a regex on gh's stderr), guard prompts and `agent_id` in a live session, Node 18, macOS/Linux.
 - Stopped after Phase 3.
+
+
+---
+
+# Part I: 0.9.0 "Usage measurement and smaller runs" (implemented 2026-11-27)
+
+Branch `task-6-token-efficiency`, on top of 0.8.0 (commit 873cfd8). Not committed yet.
+
+## I0. Why
+ChatGPT's context-saving suggestions (`chatgpt-chat/context-saving.md`) were checked against specflow and against real usage. Most were already built:
+- complexity-based models (0.8.0);
+- feature contract (spec, plan, tasks, handoff);
+- session handoff;
+- scripts for deterministic steps (the CLI);
+- short role reports;
+- PM-only user contact.
+
+Before building anything else, the work was measured. Findings, with the baseline numbers, are in [docs/usage-findings.md](../docs/usage-findings.md).
+
+In short, over the three workspaces (Wali App, madfit, HJI; 2.2B tokens):
+- the PM session is 41-52% of all tokens;
+- builders are 13-35%;
+- every other role is 7% or less.
+
+So 0.9.0 targets the PM and the builder, not "fewer specialists".
+
+## I1. `specflow usage [id] [--since date --all --transcripts dir]`
+- Reads `~/.claude/projects/<workspace slug>` (honours `CLAUDE_CONFIG_DIR`; the slug is the root path with each non-alphanumeric character turned into `-`, matched case-insensitively). `--transcripts` overrides the folder.
+- Main sessions: `<session>.jsonl`. Assistant usage is deduplicated by message id, and inline sidechain lines are skipped. Each turn counts toward the item named by the last `specflow`/`sflow` Bash or PowerShell command; only ids in the backlog count, and the naming turn itself still counts toward the previous item. Turns before any such command are `(unattributed)`.
+- Subagents: `<session>/subagents/agent-*.jsonl` plus `.meta.json`. The role is taken from the agent type (`specflow:x` becomes `x`; others become `other:<type>`). A `specflow dispatch: role reviewer` header sets the role to `reviewer`. The item comes from the dispatch header, else the first known id in the first prompt.
+- Overview output: total, fresh (input + cache write), output, PM, team, agents per item; the average per finished item (accepted, released or done); the top 20, or all with `--all`.
+- `usage <id>`: per role with turns, agents and models.
+- `--json` throughout. Read-only; no prices.
+- Files: `scripts/lib/usage.mjs`, `scripts/commands/usage.mjs` (new); `scripts/specflow.mjs` (command and HELP).
+
+## I2. Builder task batches
+- `team.builder_batch`: a whole number >= 0, default 5 (`BUILDER_BATCH_DEFAULT`); 0 means every open task of the repo in one run. Set with `team set --builder-batch n`; `team show` prints it; `validate` rejects anything else.
+- `parseTasks` now returns each task's `id` (a leading `T\d+`). `builderBatch(ctx, f, repo, size)` in `dispatch.mjs` takes the first `size` open tasks of the repo in tasks.md order; a task without an id is referred to as `#<line position>`.
+- Builder dispatch with a repo adds `Tasks this run: T002, ... only (5 of 7 open in backend). Then mark them, checkpoint and return; the PM dispatches a fresh builder for the rest.` For the last batch it adds `Tasks this run: the last N open task(s) of <repo> (...)`. The packet gains `tasks` and `tasks_left` (null for other roles).
+- Rework line, for builder and lead during an open round: `Rework: fix only the findings for <repo> in verification.md (round n: <reason, 160 chars>); start from the files they name.`
+- The prompt now always ends with `Follow the subagent contract in your agent definition.`; the body is cut to fit 1,200 characters minus that line.
+- Files: `scripts/lib/{team,gates,dispatch}.mjs`, `scripts/commands/team.mjs`, `templates/workspace/config.json` (`team.builder_batch: 5`).
+
+## I3. Session budget 100k
+- `SESSION_DEFAULTS` is now 100,000 / 50,000; `SESSION_DEFAULTS_0_8` keeps 150,000 / 100,000. The template config uses the new values.
+- The 0.8.0 migration still writes the 0.8.0 values, so it stays historically correct; migration 0.9.0 lowers them.
+- Migration `0.9.0`:
+  - `context_budget` 150,000 becomes 100,000, and `repeat_every` 100,000 becomes 50,000, only where they still equal the 0.8.0 defaults;
+  - adds `team.builder_batch: 5` when missing.
+  - This is the one documented exception to "migrations only add keys" (comment in `migrations.mjs`).
+- Files: `scripts/lib/{session,migrations}.mjs`.
+
+## I4. Skills and agents
+- **build/SKILL.md**, new section "Keep your context small":
+  - one batch per run, about 40 tool calls, then checkpoint and return;
+  - search, then read slices; no whole-file `cat` over about 150 lines; no re-reads; start from the files the task names;
+  - targeted tests with a quiet reporter, failures only (`| tail -40`), full suite once before `verify run`;
+  - no screenshot loops (at most 3 cropped);
+  - rework starts from the findings.
+- **agents/builder.md:** contract item 3 adds slice reading, the `Tasks this run` line and the soft limit.
+- **architect/SKILL.md:** each task names the files (and function or component) it touches, and tasks are sized so about 5 fit in one run.
+- **verify/SKILL.md and ux/SKILL.md:** one cropped screenshot per key screen and state; no re-capture loops.
+- **flow/SKILL.md (PM):**
+  - re-dispatch the same repo for the next batch, always a fresh builder;
+  - "Keep this session lean": CLI output and handoff only; no code, specs, logs, tests, screenshots or web searches; code and document questions go to the owning role (`dispatch --question`) or a read-only Explore agent (at most 10 lines); role work goes through dispatch, never a general-purpose agent; budget handling;
+  - `Token use: specflow usage [id]`.
+  - The skill stays under the 7 KB test limit (6,977 bytes).
+- **README:** usage paragraph and row, the "Short builder runs" paragraph, the budget numbers, `team set --builder-batch`, the 0.9.0 migration note, "Public beta (0.9.0)".
+- **CHANGELOG:** `[0.9.0] - 2026-11-27`. **Versions:** 0.9.0 in `plugins/specflow/.claude-plugin/plugin.json` and the root `package.json`.
+
+## I5. Tests
+- New `tests/usage.test.mjs`:
+  - U-1: attribution of PM turns, subagents and the dispatch header; dedup; inline sidechains skipped; unknown ids ignored.
+  - U-2: `--since`, text output, errors, empty folder.
+- New `tests/phase5.test.mjs`:
+  - P5-1: batch of 5, `#n` refs, last batch, batch 0, the tail line kept.
+  - P5-2: no batch for non-builders; rework line.
+  - P5-3: `team set --builder-batch` validation; `validate`.
+  - P5-4: new workspace defaults; migration 0.9.0 lowers only untouched defaults, keeps user values, idempotent.
+- Adjusted:
+  - P4-4 pins its budget to 150k/100k;
+  - version strings 0.8.0 to 0.9.0 in `tests/{compat,legacy,phase2,phase3}.test.mjs`;
+  - P3-20 expects "Public beta (0.9.0)".
+- Result: `npm test` 120 tests, 120 pass.
+- `specflow upgrade` dry run on Wali App, madfit and HJI: each shows exactly the two budget changes and `builder_batch = 5`. Not applied.
+
+## I6. Deviations and decisions
+1. **Dropped after measuring:**
+   - dispatch-only role skills (`disable-model-invocation`): the PM never loaded a role skill;
+   - a repo-profile pointer in dispatch: no subagent read workspace-map.md, and graphify covers it;
+   - complexity-based role routing and skipping the reviewer for low items: reviewers cost 0-4%, and low items average 1-2M tokens.
+2. **Batch size is by task count, not turns.** Turns cannot be enforced from outside, so the builder also has a soft limit of about 40 tool calls. The measured simulation is by turns; the real gain depends on how big the tasks are.
+3. **Lead agents are unchanged:** a lead still spawns its own builders. Batching applies to `builder` dispatches only.
+4. **The `--since` check in U-2 targets item B,** where the old turn lives: turns count toward the item named before them.
+5. **`usage` reports tokens, not money.**
+
+## I7. Open / next
+- Apply `specflow upgrade --apply` in the three workspaces. The CLI asks for confirmation.
+- After a few features, re-measure with `specflow usage --since 2026-11-27` and the scripts in `docs/usage-analysis/`, and compare with docs/usage-findings.md.
+- Not exercised in a live session: the PM following the re-dispatch rule, and builders honouring the soft limit.
+- The PM's model is a per-session choice (`/model`). Running routine dispatch sessions on Sonnet is the largest lever left, and outside the framework's control.
+- Commit pending; the unrelated uncommitted change in `scripts/commands/stage.mjs` is not part of this work.

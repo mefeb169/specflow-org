@@ -5,7 +5,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { paths } from './state.mjs';
 
-export const SESSION_DEFAULTS = { context_budget: 150000, repeat_every: 100000 };
+// 0.9.0 lowered the budget from 150k/100k: measured on three workspaces, 100k cuts PM context tokens by about 20-25%.
+export const SESSION_DEFAULTS = { context_budget: 100000, repeat_every: 50000 };
+export const SESSION_DEFAULTS_0_8 = { context_budget: 150000, repeat_every: 100000 };
 const TAIL_BYTES = 512 * 1024;
 const KEEP_SESSIONS = 20;
 
