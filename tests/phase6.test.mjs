@@ -125,3 +125,91 @@ test('P6-6. handoff has a Resume with line for each situation', () => {
   assert.equal(resume(id), 'specflow next');
   fx.cleanup();
 });
+
+// ---- task cards ----
+
+const cardOf = (root, d) => fs.readFileSync(path.join(root, d.card), 'utf8');
+
+test('P6-7. card: user-story sections and AC lines are extracted for the three heading styles', () => {
+  const spec = [
+    '# Spec', '## Scope', 'scope text', '',
+    '### US1 (P1) Export schema', '- the user exports', '- it is read-only', '',
+    '### US2 (P1) Unrelated', '- not for this batch', '',
+    '## 1. F-177 add-student parentId', '- AC1.1: `CreateStudentDto` has required parentId.', '  continued line of AC1.1', '- AC1.10: a different criterion', '- AC1.2: other', '',
+    '### User Story 3 - Spec Kit style', 'FR-001 System MUST validate input.', 'FR-002 System MUST log.', '', '## Other', 'FR-009 unrelated requirement', '',
+  ].join('\n');
+  const { fx, id } = setup([
+    '- [ ] T001 [US1] [repo:backend] one',
+    '- [ ] T002 [repo:backend] two (AC1.1)',
+    '- [ ] T003 [US3] [repo:backend] three FR-001',
+  ], spec);
+  const d = j(fx.root, 'dispatch', id, '--repo', 'backend');
+  const c = cardOf(fx.root, d);
+  assert.match(c, /### US1 \(P1\) Export schema/);
+  assert.match(c, /it is read-only/);
+  assert.doesNotMatch(c, /not for this batch/);
+  assert.match(c, /AC1\.1: `CreateStudentDto`/);
+  assert.match(c, /continued line of AC1\.1/);
+  assert.doesNotMatch(c, /AC1\.10/, 'AC1.1 does not match AC1.10');
+  assert.match(c, /### User Story 3 - Spec Kit style/, 'US3 matches "User Story 3"');
+  assert.match(c, /FR-001 System MUST validate/);
+  assert.match(c, /FR-002/, 'the whole story section comes with it');
+  assert.doesNotMatch(c, /FR-009/);
+  fx.cleanup();
+});
+
+test('P6-8. card: fallback line when no ids are referenced; header, branch and tasks', () => {
+  const { fx, id } = setup(['- [ ] T001 [repo:backend] plain task', '- [ ] T002 [repo:frontend] other repo'], '# S\n## Acceptance criteria\n- x\n');
+  const d = j(fx.root, 'dispatch', id, '--repo', 'backend');
+  const c = cardOf(fx.root, d);
+  assert.match(c, /No acceptance ids referenced: read spec\.md "Acceptance criteria"/);
+  assert.match(c, /^# Task card: F-001 Cards .* \/ repo backend/m);
+  assert.match(c, /Batch: T001 \(1 of 1 open in backend, the last batch\)/);
+  assert.match(c, /- \[ \] T001 \[repo:backend\] plain task/);
+  assert.doesNotMatch(c, /T002/);
+  assert.match(c, /Test command: not confirmed/);
+  assert.equal(d.card, '.specflow/cache/cards/F-001-backend.md');
+  fx.cleanup();
+});
+
+test('P6-9. card: Repository Impact row of this repo only; rewritten per dispatch', () => {
+  const plan = ['# Plan', '## Repository Impact', '| Repo | Change | Contracts | Migration | Order |', '|---|---|---|---|---|', '| backend | adds endpoint | api.yaml | N | 1 |', '| frontend | adds form | api.yaml | N | 2 |', '', '## Other', 'x'].join('\n');
+  const { fx, id } = setup(['- [ ] T001 [repo:backend] a', '- [ ] T002 [repo:frontend] b'], '# S\n');
+  fs.writeFileSync(path.join(fx.root, 'specs', '001-x', 'plan.md'), plan);
+  let c = cardOf(fx.root, j(fx.root, 'dispatch', id, '--repo', 'backend'));
+  assert.match(c, /\| backend \| adds endpoint/);
+  assert.doesNotMatch(c, /\| frontend \|/);
+  assert.match(c, /\| Repo \| Change/);
+  c = cardOf(fx.root, j(fx.root, 'dispatch', id, '--repo', 'frontend'));
+  assert.match(c, /\| frontend \| adds form/);
+  assert.doesNotMatch(c, /\| backend \|/);
+  // marking T001 done changes the next backend card
+  fs.writeFileSync(path.join(fx.root, 'specs', '001-x', 'tasks.md'), '- [X] T001 [repo:backend] a\n- [ ] T003 [repo:backend] c\n- [ ] T002 [repo:frontend] b\n');
+  c = cardOf(fx.root, j(fx.root, 'dispatch', id, '--repo', 'backend'));
+  assert.match(c, /T003/);
+  assert.doesNotMatch(c, /T001/);
+  fx.cleanup();
+});
+
+test('P6-10. card: acceptance is capped (lines, bytes) and the prompt stays under 1,200 characters', () => {
+  const spec = ['# S', '### US1 (P1) Big', ...Array.from({ length: 200 }, (_, i) => `- criterion ${i} ${'x'.repeat(60)}`)].join('\n');
+  const { fx, id } = setup(Array.from({ length: 9 }, (_, i) => `- [ ] T00${i + 1} [US1] [repo:backend] task ${i + 1} in src/some/long/path/file${i}.ts ${'y'.repeat(120)}`), spec);
+  const d = j(fx.root, 'dispatch', id, '--repo', 'backend');
+  const c = cardOf(fx.root, d);
+  assert.ok(Buffer.byteLength(c) <= 8 * 1024, `card is ${Buffer.byteLength(c)} bytes`);
+  assert.ok(c.split('\n').length <= 121);
+  assert.match(c, /\(truncated: see spec\.md\)/);
+  assert.match(c, /Batch: T001\.\.T005 \(5 of 9 open in backend\)/);
+  assert.ok(d.prompt.length <= 1200, `prompt is ${d.prompt.length}`);
+  assert.match(d.prompt, /Card: \.specflow\/cache\/cards\/F-001-backend\.md/);
+  assert.match(d.prompt, /Follow the subagent contract in your agent definition\.$/);
+  fx.cleanup();
+});
+
+test('P6-11. card: non-builder roles get none', () => {
+  const { fx, id } = setup(['- [ ] T001 [repo:backend] a']);
+  const d = j(fx.root, 'dispatch', id, '--role', 'reviewer', '--repo', 'backend');
+  assert.equal(d.card ?? null, null);
+  assert.doesNotMatch(d.prompt, /Card:/);
+  fx.cleanup();
+});

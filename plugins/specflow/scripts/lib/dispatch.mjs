@@ -6,6 +6,7 @@ import { checkTasks, parseTasks, uxCheck } from './gates.mjs';
 import { ROLE_AGENT, ROLE_FALLBACK, ROLE_TARGET, TEAM_ROLES, leadOf, releaseCfg, teamCfg, testingCfg } from './team.mjs';
 import { releaseFile } from './release.mjs';
 import { pickModel } from './models.mjs';
+import { writeCard } from './cards.mjs';
 
 const PROMPT_MAX = 1200;
 const cut = (s, n) => (String(s).length > n ? `${String(s).slice(0, n - 3)}...` : String(s));
@@ -29,7 +30,7 @@ function releaseLine(ctx, f) {
 export function builderBatch(ctx, f, repo, size) {
   const open = (parseTasks(ctx, f) || []).map((t, i) => ({ ...t, ref: t.id || `#${i + 1}` })).filter((t) => !t.done && t.repo === repo);
   const take = size > 0 ? open.slice(0, size) : open;
-  return { tasks: take.map((t) => t.ref), left: open.length, last: take.length === open.length };
+  return { tasks: take.map((t) => t.ref), items: take, left: open.length, last: take.length === open.length };
 }
 
 function batchLine(b, repo) {
@@ -127,12 +128,14 @@ export function dispatch(ctx, f, flags = {}) {
   const have = dir ? ARTIFACTS.filter((a) => fs.existsSync(path.join(dir, a))) : [];
   const round = f.rework.find((r) => !r.closed_at);
   const batch = role === 'builder' && repo ? builderBatch(ctx, f, repo, team.builder_batch) : null;
+  const card = batch && batch.items.length ? writeCard(ctx, f, repo, batch) : null;
   const shown = qs.slice(0, 4).map((q) => `${q.id} ${cut(q.text, 80)}`).join(' | ') + (qs.length > 4 ? ` (+${qs.length - 4} more: specflow question list --open --feature ${f.id})` : '');
   const lines = [
     `specflow dispatch: role ${role}. ${f.id} "${cut(f.title, 60)}" (${f.kind}, lane ${f.lane}, stage ${f.stage}${round ? `, rework round ${round.n}: ${cut(round.reason, 60)}` : ''}).`,
     eff.covers.length ? `You cover the disabled ${eff.covers.join(', ')} role.` : '',
     repo ? `Repo: ${repo}${todo.length > 1 ? ` (repos still to do, deploy order: ${todo.join(', ')})` : ''}` : '',
     batch ? batchLine(batch, repo) : '',
+    card ? `Card: ${card} (your tasks, their acceptance and the rules; read it first, open spec/plan only for what it lacks)` : '',
     round && ['builder', 'lead'].includes(role) ? `Rework: fix only the findings${repo ? ` for ${repo}` : ''} in verification.md (round ${round.n}: ${cut(round.reason, 160)}); start from the files they name.` : '',
     lead ? `Lead area: ${lead.name} (repos: ${lead.repos.filter((n) => f.repos.includes(n)).join(', ')})` : '',
     `Handoff: ${handoff}${fs.existsSync(path.resolve(ctx.root, handoff)) ? '' : ' (not written yet)'}`,
@@ -146,5 +149,5 @@ export function dispatch(ctx, f, flags = {}) {
   const tail = 'Follow the subagent contract in your agent definition.';
   const prompt = `${cut(lines.join('\n'), PROMPT_MAX - tail.length - 1)}\n${tail}`;
   const m = pickModel(ctx, f, role);
-  return { ...base, role, agent: ROLE_AGENT[role], model: m.model, model_ceiling: m.ceiling, complexity: m.complexity, model_reason: m.why, repo, lead: lead ? lead.name : null, repos_todo: todo, tasks: batch ? batch.tasks : null, tasks_left: batch ? batch.left : null, questions: qs.map((q) => q.id), prompt };
+  return { ...base, role, agent: ROLE_AGENT[role], model: m.model, model_ceiling: m.ceiling, complexity: m.complexity, model_reason: m.why, repo, lead: lead ? lead.name : null, repos_todo: todo, tasks: batch ? batch.tasks : null, card, tasks_left: batch ? batch.left : null, questions: qs.map((q) => q.id), prompt };
 }
