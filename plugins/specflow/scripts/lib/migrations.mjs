@@ -154,4 +154,21 @@ export const MIGRATIONS = [
       if (ctx.config.team) ctx.config.team.builder_batch ??= BUILDER_BATCH_DEFAULT;
     },
   },
+  {
+    to: '0.10.0',
+    describe: 'Clear points and task cards: session.clear_at/soft_budget (boundary clearing is opt-in), team.task_models',
+    plan(ctx) {
+      const out = [];
+      const s = ctx.config.session;
+      if (s && s.clear_at === undefined) out.push(`config.session.clear_at = ${SESSION_DEFAULTS.clear_at}`);
+      if (s && s.soft_budget === undefined) out.push(`config.session.soft_budget = ${SESSION_DEFAULTS.soft_budget}`);
+      if (ctx.config.team && ctx.config.team.task_models === undefined) out.push('config.team.task_models = true (model tags on tasks)');
+      return out;
+    },
+    apply(ctx) {
+      const s = ctx.config.session;
+      if (s) { s.clear_at ??= SESSION_DEFAULTS.clear_at; s.soft_budget ??= SESSION_DEFAULTS.soft_budget; }
+      if (ctx.config.team) ctx.config.team.task_models ??= true;
+    },
+  },
 ];

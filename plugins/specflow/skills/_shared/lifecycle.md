@@ -34,6 +34,8 @@ Moving backward: `stage set <id> <earlier> --reason "..."` (clears gates from th
 - **Issues:** `issue add "<text>" --kind bug|debt|chore --from <id>` for anything outside the current item's scope; `issue list`. `feature drop <id> --reason` / `feature restore`; dropped items leave `next` and hold dependents.
 - **Rework round:** `rework start <id> --reason` from `verifying` or `accepted` returns the item to `implementing` on the same branches (no new PR); moving to `accepted` closes the round.
 - **Focus:** `focus <id>` marks the item being worked on; `interrupt "<text>"` parks it and focuses a P0 urgent item; `resume` pops the parked one. `checkpoint <id> --next "..."` rewrites the handoff file (`specs/<dir>/handoff.md`, at most ~60 lines).
+- **Task cards:** a builder dispatch writes `.specflow/cache/cards/<id>-<repo>.md` (batch tasks, cited acceptance, plan row, rules) and names it on the `Card:` line; the builder reads it first. A task may carry `[model:haiku|sonnet|opus]` (mechanical work only); a batch ends at a model change and the tag is capped at the role's model.
+- **Clear points:** with `session.clear_at: boundary` the Stop hook asks for a checkpoint and a "safe to /clear" message at a finished unit of work once past `session.soft_budget`; a handoff's `Resume with:` line is the command a fresh session runs.
 - **Milestones:** `milestone set <name>` limits `next` and `status` to that milestone (plus urgent and bug items); `--all` shows everything.
 
 

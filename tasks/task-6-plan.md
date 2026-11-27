@@ -162,3 +162,22 @@ After about three slices on 0.10.0 in one workspace, run `specflow usage --since
 - **Clearing after every builder batch:** a 62k restart against a few thousand tokens of PM growth per batch (Part C). F1 shows the numbers.
 - **An architect-written `task.md` per task:** costs architect (Opus) tokens and adds files; the CLI card gives the same contract for free.
 - **A lower slice threshold now:** wait for 0.9.0 data (batches of 5 already shorten builder runs).
+
+---
+
+# Implementation log (0.10.0, 2026-11-27)
+
+Built on branch `task-6-token-efficiency`, one commit per step; the owner's uncommitted `stage.mjs` change and `tasks/task-5.md`, `tasks/task-6.md` were left out. Full suite: 135 tests (126 existing plus `tests/phase6.test.mjs`, 15), all passing; `claude plugin validate plugins/specflow` passes.
+
+- **F1:** `docs/usage-analysis/clearsim.mjs`; table in `docs/usage-findings.md` section 7. Average saving versus actual PM tokens: hard 100k only 22.7%; boundary soft 60k/70k/80k/90k 21.7/23.3/**24.0**/23.0%; every dispatch return 22.0%. Best boundary option beats the plain budget by 1.3 points (< 3), so by the decision rule `session.clear_at` defaults to `budget` and boundary clearing is opt-in; `soft_budget` = 80,000. Option (c) did not win, so the build continued.
+- **F2:** `boundaryCheck`, `markSessionStart`, `boundaryEvents` in `lib/session.mjs`; wired in the Stop and SessionStart hooks; `resumeCommand` and the `Resume with:` line in `lib/handoff.mjs`. 
+- **F3:** `lib/cards.mjs`; `dispatch` writes the card and adds a `Card:` line and `card` field; build skill and builder agent read the card first.
+- **F4:** `[model:x]` parsing and validation in `lib/gates.mjs`, batch split in `builderBatch`, tag handling in `pickModel`, `team.task_models` and `team set --task-models`; one sentence in the architect skill.
+- **F5/F6:** flow skill, lifecycle, README, CHANGELOG `[0.10.0]`, architecture A13, migration `0.10.0`, version 0.10.0 (plugin.json, package.json, version expectations in compat/legacy/phase2/phase3 tests, P5-4 session defaults).
+
+Deviations and notes:
+- `boundaryCheck` stores `boundary_at`/`started_at` in the existing session marker file; `budgetCheck` no longer deletes a session's marker on reset (it only drops `warned_at`), so the start and boundary marks survive.
+- A task tag can also raise the model within the ceiling (for example `[model:sonnet]` on an item that would get haiku); it never exceeds the ceiling. The plan only required the cap.
+- The flow skill had to stay under 7,000 bytes (P2-18, P3-20), so the clear-point text there is two short lines.
+- F7.4: covered by P6-10 (9 tasks, 2 repos: card under 8 KB, prompt under 1,200 characters). Not run on a real workspace.
+- `marketplace.json` carries no version, so it was not changed.

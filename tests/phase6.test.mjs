@@ -263,3 +263,26 @@ test('P6-14. model_policy fixed and team.task_models false ignore the tags', () 
   assert.ok(JSON.parse(cli(fx.root, 'validate', '--json').out).errors.some((e) => /team.task_models/.test(e)));
   fx.cleanup();
 });
+
+// ---- migration 0.10.0 ----
+
+test('P6-15. migration 0.10.0 is additive and keeps user values; chains from 0.8.0', () => {
+  const fx = makeFixture();
+  ok(cli(fx.root, 'init'));
+  const V10 = { SPECFLOW_FAKE_FRAMEWORK_VERSION: '0.10.0' };
+  patchCfg(fx.root, (c) => { c.framework_version = '0.9.0'; c.session = { context_budget: 120000, repeat_every: 40000, clear_at: 'boundary' }; delete c.team.task_models; });
+  const dry = JSON.parse(cliEnv(fx.root, V10, 'upgrade', '--json').out);
+  assert.equal(dry.migrations.find((m) => m.to === '0.10.0').changes.length, 2, 'soft_budget and task_models (clear_at is already set)');
+  ok(cliEnv(fx.root, V10, 'upgrade', '--apply'));
+  assert.deepEqual(readCfg(fx.root).session, { context_budget: 120000, repeat_every: 40000, clear_at: 'boundary', soft_budget: 80000 });
+  assert.equal(readCfg(fx.root).team.task_models, true);
+  assert.equal(JSON.parse(cliEnv(fx.root, V10, 'upgrade', '--apply', '--json').out).migrations.length, 0, 'idempotent');
+
+  patchCfg(fx.root, (c) => { c.framework_version = '0.8.0'; c.session = { context_budget: 150000, repeat_every: 100000 }; delete c.team.builder_batch; delete c.team.task_models; });
+  ok(cliEnv(fx.root, V10, 'upgrade', '--apply'));
+  assert.deepEqual(readCfg(fx.root).session, { context_budget: 100000, repeat_every: 50000, clear_at: 'budget', soft_budget: 80000 });
+  assert.equal(readCfg(fx.root).team.builder_batch, 5);
+  assert.equal(readCfg(fx.root).team.task_models, true);
+  assert.equal(readCfg(fx.root).framework_version, '0.10.0');
+  fx.cleanup();
+});

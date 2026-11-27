@@ -2,6 +2,19 @@
 
 Format: [Keep a Changelog](https://keepachangelog.com/). Versions follow the plugin version in `plugins/specflow/.claude-plugin/plugin.json`.
 
+## [0.10.0] - 2026-11-27
+Task-level execution: smaller, self-contained units of work and clear points. Measured first: clearing the PM session at workflow boundaries beat the plain 100k budget by only 1.3 points on average (`docs/usage-analysis/clearsim.mjs`, findings section 7), so it ships opt-in; the builder side (cards) is the main change. A 0.9.0 workspace keeps working before `specflow upgrade --apply`.
+### Added
+- Task cards: `dispatch` for a builder writes `.specflow/cache/cards/<id>-<repo>.md` (batch tasks, cited acceptance from spec.md, the repo's Repository Impact row, branch, test command, rules; at most 120 lines / 8 KB) and names it on a `Card:` line; the packet carries `card`. The build skill and builder agent read the card first.
+- Model per task: `[model:haiku|sonnet|opus]` on a task line (`check tasks` rejects unknown values); a batch ends before the first task with a different model; the tag is capped at the builder's configured model. `team.task_models` (default true), `team set --task-models`.
+- Clear points (opt-in): `session.clear_at: boundary` with `session.soft_budget` (80,000). The Stop hook, after the hard budget check, asks the PM to checkpoint and tell the user it is safe to `/clear` once a unit of work finished since the session (or the last clear point) started. SessionStart records the session start.
+- Handoff: a `Resume with:` line with the exact command a fresh session runs.
+- `docs/usage-analysis/clearsim.mjs` and findings section 7. Upgrade migration `0.10.0`; tests `tests/phase6.test.mjs`.
+### Changed
+- Skills: flow (clear points, resume from `Resume with:`), build (card first), architect (model tags), lifecycle reference.
+### Known gaps
+- `team.workflow` (`feature|task`) is asked in setup and stored, but nothing reads it yet.
+
 ## [0.9.0] - 2026-11-27
 Smaller runs, from measured use on three workspaces (2.2B tokens): the PM session was 41-52% of all tokens and builders 13-35%; specialists (product, ux, verifier, reviewers) were 7% or less each. A 0.8.0 workspace keeps working before `specflow upgrade --apply`.
 ### Added

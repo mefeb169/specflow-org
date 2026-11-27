@@ -42,7 +42,7 @@ const HELP = `specflow <command>   (alias: sflow)
   pref set <key> <value> [--by role] | pref list | pref rm <key>
   decision add "<question>" "<answer>" [--feature id --by who] | decision list [--feature id --limit n]
   lesson add "<text>" [--from id] | lesson list [--status s] | lesson promote|reject L-n
-  team [show] | team set <role> [--model m --enabled true|false] | team set --communication short|normal|detailed | team set --workflow feature|task
+  team [show] | team set <role> [--model m --enabled true|false] | team set --communication short|normal|detailed | team set --workflow feature|task | team set --task-models true|false
   team lead add <name> --repos a,b | team lead rm <name> | team generate
   setup questions | setup apply --answers <file.json> | setup status   (the setup interview as data; the setup skill asks the questions)
   dispatch <id> [--role r --repo name --question Q-n]   (packet for the PM: agent, model, prompt to spawn)

@@ -35,10 +35,10 @@ Follow `team.communication` (`specflow team show`): short = outcome and next ste
 Every turn re-reads this whole context, and whatever you read stays. Read only CLI output and the handoff: no code, specs, logs, tests, screenshots or web searches here. A question about code or a document goes to the owning role (`dispatch --question`) or a read-only `Explore` agent asked for at most 10 lines. Role work goes through `specflow dispatch`, never a general-purpose agent. When the Stop hook reports the session budget: checkpoint, tell the user to start fresh, stop.
 
 ## Continuity
-- On "continue" or "resume", read the brief's Focus line and that handoff file first; do not re-read spec, plan or tasks until the handoff says to.
+- On "continue" or "resume", read the brief's Focus line and that handoff first.
 - An urgent request is `specflow interrupt "<text>" --repos a,b`: it checkpoints and parks the focus item and lists conflicts (other in-flight items on the same repos, branch, dirty state). Resolve conflicts with the user; the CLI never switches branches. After the urgent item, `specflow resume`.
 - Small fixes found along the way: `specflow issue add`. A user's task file: `specflow intake <file>`.
-- After a gate or a finished slice, run `specflow checkpoint <id> --next "..."` and suggest ending the session: state is on disk, a new session continues from the handoff.
+- On a Stop-hook clear point or budget message: `specflow checkpoint <id> --next "..."`, tell the user in one line it is saved and safe to `/clear` and say "continue", stop. On "continue", run the handoff's `Resume with:` command.
 - A recurring review finding is `lesson add`; only the owner turns a lesson into a rule (`lesson promote`).
 
 ## Answering questions
